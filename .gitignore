@@ -1,6 +1,24 @@
 /models/qa/model.safetensors
 /workspaces/OCR-Image-to-text/models/sentence_transformer/model.safetensors
 
+# Ignore large model files and their parts
+models/**/pytorch_model.bin
+models/**/pytorch_model.bin.part_*
+models/**/tf_model.h5
+models/**/model.ckpt
+models/**/model.onnx
+models/**/saved_model/**
+
+# Ignore other large files
+*.safetensors
+*.h5
+*.ckpt
+*.onnx
+*.pb
+*.tflite
+*.pt
+*.weights
+
 # Ignore Python cache files
 __pycache__/
 *.py[cod]
