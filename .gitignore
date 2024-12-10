@@ -1,0 +1,13 @@
+/models/qa/model.safetensors
+
+# Ignore Python cache files
+__pycache__/
+*.py[cod]
+
+# Ignore other unnecessary files
+*.log
+*.tmp
+*.bak
+*.swp
+.DS_Store
+Thumbs.db

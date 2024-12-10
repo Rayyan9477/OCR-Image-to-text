@@ -1,0 +1,125 @@
+/* Main Theme */
+.main {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    min-height: 100vh;
+    padding: 2rem;
+}
+
+/* Header Styling */
+.stTitle {
+    background: linear-gradient(90deg, #2c3e50, #3498db);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-size: 2.5rem !important;
+    padding: 1rem 0;
+}
+
+/* Card Container */
+.card {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 1.5rem;
+    margin: 1rem 0;
+    transition: transform 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+/* Button Styling */
+.stButton>button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    height: 3em;
+    transition: all 0.3s ease;
+}
+
+.stButton>button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+/* Copy Button */
+.copy-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.copy-btn:hover {
+    transform: scale(1.1);
+    background: #f8f9fa;
+}
+
+/* Text Container */
+.formatted-text {
+    font-family: 'Courier New', monospace;
+    white-space: pre-wrap;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 15px;
+    background-color: #333; /* Dark background for contrast */
+    color: #fff; /* Light text color for visibility */
+    position: relative;
+    line-height: 1.5;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.formatted-text::-webkit-scrollbar {
+    width: 8px;
+}
+
+.formatted-text::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.formatted-text::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+/* Footer */
+.footer {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 0.5rem; /* Reduced padding */
+    font-size: 0.8rem; /* Reduced font size */
+    text-align: center;
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    left: 0;
+}
+
+.footer a {
+    color: white;
+    text-decoration: none;
+    margin: 0 5px; /* Reduced margin */
+    transition: opacity 0.3s ease;
+}
+
+.footer a:hover {
+    opacity: 0.8;
+}
+
+/* Q&A Section */
+.qa-section {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 10px 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}

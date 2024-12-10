@@ -1,5 +1,11 @@
-streamlit
+streamlit==1.31.0
 Pillow
 transformers
 torch
 python-dotenv
+pandas
+pytesseract
+sentence-transformers
+faiss-cpu
+PyPDF2
+pyperclip
