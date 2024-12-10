@@ -1,0 +1,5 @@
+streamlit
+Pillow
+transformers
+torch
+python-dotenv
