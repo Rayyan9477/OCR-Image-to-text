@@ -32,3 +32,4 @@ if uploaded_file is not None:
         answer = process_query(extracted_text, query)
         st.subheader("Answer:")
         st.write(answer)
+
