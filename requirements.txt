@@ -9,3 +9,4 @@ sentence-transformers
 faiss-cpu
 PyPDF2
 pyperclip
+cv2
