@@ -1,4 +1,4 @@
-streamlit
+streamlit==1.31.0
 Pillow
 transformers
 torch
@@ -9,4 +9,4 @@ sentence-transformers
 faiss-cpu
 PyPDF2
 pyperclip
-opencv-python
+opencv-python-headless

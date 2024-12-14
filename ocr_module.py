@@ -1,21 +1,17 @@
 import pytesseract
-from PIL import Image
-import numpy as np
-import cv2
+from PIL import Image, ImageFilter, ImageOps
 
 def perform_ocr(image):
-    # Convert PIL Image to OpenCV format
-    image_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+    # Convert image to grayscale
+    gray_image = ImageOps.grayscale(image)
     
-    # Preprocess the image
-    gray = cv2.cvtColor(image_cv, cv2.COLOR_BGR2GRAY)
-    denoised = cv2.fastNlMeansDenoising(gray)
+    # Apply a median filter to reduce noise
+    denoised_image = gray_image.filter(ImageFilter.MedianFilter(size=3))
     
-    # Thresholding
-    thresh = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+    # Apply thresholding
+    threshold_image = denoised_image.point(lambda p: p > 128 and 255)
     
     # Perform OCR using Tesseract
-    extracted_text = pytesseract.image_to_string(thresh)
+    extracted_text = pytesseract.image_to_string(threshold_image)
     
     return extracted_text.strip()
-
