@@ -4,11 +4,10 @@ transformers
 torch
 python-dotenv
 pandas
-pytesseract
+pytesseract==0.3.10
 sentence-transformers
 faiss-cpu
 PyPDF2
 pyperclip
-opencv-python-headless
 pymupdf
 numpy
