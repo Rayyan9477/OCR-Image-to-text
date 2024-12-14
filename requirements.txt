@@ -10,3 +10,5 @@ faiss-cpu
 PyPDF2
 pyperclip
 opencv-python-headless
+pymupdf
+numpy
