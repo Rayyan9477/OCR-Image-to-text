@@ -5,17 +5,34 @@ import fitz  # PyMuPDF for better PDF handling
 from ocr_module import perform_ocr
 from rag_module import process_query
 import base64
+import os
 
 def load_css():
-    with open('static/styles.css') as f:
+    css_file = os.path.join(os.path.dirname(__file__), 'static', 'styles.css')
+    with open(css_file) as f:
         st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+
+def load_js():
+    js_file = os.path.join(os.path.dirname(__file__), 'static', 'script.js')
+    with open(js_file) as f:
+        st.markdown(f'<script>{f.read()}</script>', unsafe_allow_html=True)
 
 def main():
     load_css()
-    
+    load_js()
+
+    if 'extracted_text' not in st.session_state:
+        st.session_state['extracted_text'] = ''
+
     st.markdown("""
         <div class="header">
             <h1>Intelligent OCR and Text Analysis Tool</h1>
+            <p>Developed by <strong>Rayyan Ahmed</strong></p>
+            <p>
+                <a href="https://www.linkedin.com/in/rayyan-ahmed9477/" target="_blank">LinkedIn</a> |
+                <a href="https://github.com/Rayyan9477/" target="_blank">GitHub</a> |
+                Email: <a href="mailto:rayyanahmed265@yahoo.com">rayyanahmed265@yahoo.com</a>
+            </p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -52,25 +69,15 @@ def main():
                 st.session_state['extracted_text'] = extracted_text
 
         with col2:
-            if 'extracted_text' in st.session_state:
+            if st.session_state['extracted_text']:
                 st.markdown("### Extracted Text")
-                extracted_text_html = st.session_state['extracted_text'].replace('\n', '<br>')
                 st.markdown(f"""
-                    <div class="text-container">
-                        <pre>{extracted_text_html}</pre>
-                        <button class="copy-btn" onclick="copyText()">📋</button>
+                    <div class="formatted-text">
+                        <pre id="output-text">{st.session_state['extracted_text']}</pre>
+                        <button class="copy-btn" onclick="copyText(this)">📋</button>
                     </div>
-                    <script>
-                        function copyText() {{
-                            const text = `{st.session_state['extracted_text']}`;
-                            navigator.clipboard.writeText(text).then(() => {{
-                                alert('Text copied to clipboard');
-                            }}).catch(err => {{
-                                console.error('Failed to copy text: ', err);
-                            }});
-                        }}
-                    </script>
                 """, unsafe_allow_html=True)
+                
                 st.download_button(
                     "💾 Download Text",
                     st.session_state['extracted_text'],
