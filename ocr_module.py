@@ -1,6 +1,5 @@
 # ocr_module.py
 import re
-from turtle import st
 import easyocr
 import numpy as np
 import pytesseract
@@ -23,5 +22,5 @@ def correct_orientation(image):
             image = image.rotate(360 - rotation, expand=True)
         return image
     except Exception as e:
-        st.warning(f"Could not determine orientation: {e}")
+        print(f"Could not determine orientation: {e}")
         return image
