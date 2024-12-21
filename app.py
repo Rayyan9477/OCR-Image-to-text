@@ -92,7 +92,7 @@ def main():
             if query:
                 with st.spinner('🤔 Finding answer...'):
                     result = process_query(st.session_state['extracted_text'], query)
-                st.markdown(f"**Answer:** {result}")
+                st.markdown(f"**Answer:** {result['answer']}")
         else:
             st.info("Please upload and process a document first.")
 

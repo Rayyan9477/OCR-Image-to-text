@@ -1,29 +1,27 @@
-import pytesseract
-from PIL import Image, ImageFilter, ImageOps, ImageEnhance
+# ocr_module.py
+import re
+from turtle import st
+import easyocr
 import numpy as np
+import pytesseract
 
 def perform_ocr(image):
     try:
-        # Convert image to grayscale
-        gray_image = ImageOps.grayscale(image)
-        
-        # Enhance contrast
-        enhancer = ImageEnhance.Contrast(gray_image)
-        enhanced_image = enhancer.enhance(2.0)
-        
-        # Convert image to numpy array
-        image_array = np.array(enhanced_image)
-        
-        # Apply thresholding
-        threshold_value = 128
-        binary_array = (image_array > threshold_value) * 255
-        
-        # Convert numpy array back to image
-        binary_image = Image.fromarray(np.uint8(binary_array))
-        
-        # Perform OCR using Tesseract
-        custom_config = r'--oem 3 --psm 6'
-        extracted_text = pytesseract.image_to_string(binary_image, config=custom_config)
+        reader = easyocr.Reader(['en'])
+        image = correct_orientation(image)
+        result = reader.readtext(np.array(image))
+        extracted_text = " ".join([res[1] for res in result])
         return extracted_text
-    except pytesseract.TesseractNotFoundError:
-        return "Error: Tesseract OCR is not installed."
+    except Exception as e:
+        return f"Error during OCR: {str(e)}"
+    
+def correct_orientation(image):
+    try:
+        osd = pytesseract.image_to_osd(image)
+        rotation = int(re.search('(?<=Rotate: )\d+', osd).group(0))
+        if rotation != 0:
+            image = image.rotate(360 - rotation, expand=True)
+        return image
+    except Exception as e:
+        st.warning(f"Could not determine orientation: {e}")
+        return image
