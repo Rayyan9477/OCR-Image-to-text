@@ -1,8 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Roboto&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&family=JetBrains+Mono&display=swap');
 
 /* Main Theme */
 .main {
-    background: linear-gradient(135deg, #2d4972 0%, #171d27 100%);
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
     min-height: 100vh;
     padding: 2rem;
 }
@@ -19,7 +19,7 @@
 
 /* Card Container */
 .card {
-    background: rgb(64, 50, 123);
+    background: rgb(255, 255, 255);
     border-radius: 10px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     padding: 1.5rem;
@@ -31,10 +31,49 @@
     transform: translateY(-5px);
 }
 
+/* Formatted text container */
+.formatted-text {
+    position: relative;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 1rem;
+    max-height: 500px;
+    overflow-y: auto;
+    font-family: 'JetBrains Mono', monospace;
+    white-space: pre-wrap;
+    margin-bottom: 1rem;
+}
+
+.formatted-text pre {
+    margin: 0;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+/* Table formatting in extracted text */
+.formatted-text table {
+    border-collapse: collapse;
+    margin: 1rem 0;
+    width: 100%;
+}
+
+.formatted-text table, .formatted-text th, .formatted-text td {
+    border: 1px solid #dee2e6;
+}
+
+.formatted-text th, .formatted-text td {
+    padding: 0.5rem;
+    text-align: left;
+}
+
 /* Button Styling */
 .stButton>button {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: rgb(79, 71, 71);
+    color: white;
     border: none;
     border-radius: 5px;
     height: 3em;
@@ -49,48 +88,106 @@
 /* Copy Button */
 .copy-btn {
     position: absolute;
-    top: 10px;
-    right: 10px;
-    padding: 8px;
-    border-radius: 50%;
-    background: rgba(67, 57, 57, 0.9);
-    cursor: pointer;
-    transition: all 0.3s ease;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: rgba(0, 123, 255, 0.1);
     border: none;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
 }
 
 .copy-btn:hover {
-    transform: scale(1.1);
-    background: #77818b;
+    background: rgba(0, 123, 255, 0.2);
 }
 
-/* Text Container */
-.formatted-text {
-    font-family: 'Courier New', monospace;
-    white-space: pre-wrap;
-    border: 1px solid #645555;
-    border-radius: 8px;
-    padding: 15px;
-    background-color: #333; /* Dark background for contrast */
-    color: #fff; /* Light text color for visibility */
-    position: relative;
-    line-height: 1.5;
-    max-height: 500px;
-    overflow-y: auto;
+/* Format selector */
+.format-selector {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
 }
 
-.formatted-text::-webkit-scrollbar {
-    width: 8px;
-}
-
-.formatted-text::-webkit-scrollbar-track {
-    background: #f1f1f1;
-}
-
-.formatted-text::-webkit-scrollbar-thumb {
-    background: #888;
+.format-btn {
+    padding: 0.25rem 0.75rem;
     border-radius: 4px;
+    background: #f1f3f5;
+    border: 1px solid #dee2e6;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.format-btn.active {
+    background: #4361ee;
+    color: white;
+    border-color: #4361ee;
+}
+
+/* Highlight text matches */
+.highlight {
+    background-color: rgba(255, 213, 79, 0.4);
+    border-radius: 2px;
+    padding: 0 2px;
+}
+
+/* Page separators for PDFs */
+.page-separator {
+    border-top: 1px dashed #6c757d;
+    margin: 1rem 0;
+    padding-top: 0.5rem;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+/* Settings panel */
+.settings-panel {
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.settings-panel h4 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    color: #2c3e50;
+}
+
+/* OCR Engine options */
+.engine-option {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.engine-option input[type="radio"] {
+    margin-right: 0.5rem;
+}
+
+/* Progress indicators */
+.progress-wrapper {
+    margin: 1rem 0;
+}
+
+.progress-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+}
+
+.progress-bar {
+    height: 6px;
+    background: #e9ecef;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4361ee, #3a0ca3);
+    border-radius: 3px;
+    transition: width 0.3s ease;
 }
 
 /* Footer */
@@ -124,4 +221,11 @@
     padding: 20px;
     margin: 10px 0;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .formatted-text {
+        max-height: 300px;
+    }
 }

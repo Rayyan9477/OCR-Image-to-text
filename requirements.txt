@@ -12,3 +12,10 @@ pyperclip
 pymupdf
 numpy
 easyocr
+paddlepaddle
+paddleocr
+opencv-python
+scikit-image
+langdetect
+tf-keras
+tensorflow

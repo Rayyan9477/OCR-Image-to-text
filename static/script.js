@@ -1,7 +1,17 @@
+// This function will be called when the copy button is clicked
 function copyText(button) {
+    // Find the text container (pre element) within the parent element of the button
     const textContainer = button.parentElement.querySelector('pre');
-    const text = textContainer.innerText;
-
+    if (!textContainer) {
+        console.error('Text container not found');
+        button.innerHTML = '❌';
+        setTimeout(() => button.innerHTML = '📋', 2000);
+        return;
+    }
+    
+    // Get the text to copy
+    const text = textContainer.innerText || textContainer.textContent;
+    
     if (navigator.clipboard && window.isSecureContext) {
         // Modern browsers in secure context
         navigator.clipboard.writeText(text)

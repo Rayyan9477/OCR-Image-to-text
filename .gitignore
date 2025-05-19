@@ -18,7 +18,7 @@ models/**/saved_model/**
 *.tflite
 *.pt
 *.weights
-
+.qodo/
 # Ignore Python cache files
 __pycache__/
 *.py[cod]
