@@ -1,4 +1,5 @@
-# Initialize imports, environment variables and dependencies
+#!/usr/bin/env python3
+# app.py - Streamlit app for OCR and Text Analysis
 import streamlit as st
 from PIL import Image
 import io
@@ -10,6 +11,10 @@ import sys
 import subprocess
 import logging
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 # Add src directory to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
@@ -17,10 +22,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 if 'dependency_errors' not in st.session_state:
     st.session_state['dependency_errors'] = []
 
-# Set environment variables to suppress TensorFlow warnings
+# Set environment variables to suppress warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-
-# Set environment variables for TF-Keras compatibility
 os.environ['TF_USE_LEGACY_KERAS'] = '1'
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 
@@ -61,69 +64,73 @@ except Exception as e:
 # Check OCR engines availability
 def check_ocr_engines():
     """Check which OCR engines are available and provide installation instructions if needed"""
-    available_engines = []
-    missing_engines = []
-    installation_instructions = []
-    
-    # Check PaddleOCR
-    paddle_spec = importlib.util.find_spec('paddleocr')
-    if paddle_spec:
-        available_engines.append("PaddleOCR")
-    else:
-        missing_engines.append("PaddleOCR")
-        installation_instructions.append("pip install paddlepaddle paddleocr")
-    
-    # Check EasyOCR
-    easy_spec = importlib.util.find_spec('easyocr')
-    if easy_spec:
-        available_engines.append("EasyOCR")
-    else:
-        missing_engines.append("EasyOCR")
-        installation_instructions.append("pip install easyocr")
-    
-    # Check Tesseract
+    # First try the ocr_manager implementation
     try:
-        import pytesseract
-        pytesseract.get_tesseract_version()
-        available_engines.append("Tesseract")
-    except:
-        missing_engines.append("Tesseract")
-        if os.name == 'nt':  # Windows
-            installation_instructions.append(
-                "1. Download Tesseract installer from https://github.com/UB-Mannheim/tesseract/wiki\n"
-                "2. Install and add to PATH\n"
-                "3. pip install pytesseract"
-            )
-        elif os.name == 'posix':  # Linux/macOS
-            if os.path.exists('/usr/bin/apt'):  # Debian/Ubuntu
-                installation_instructions.append("sudo apt-get install tesseract-ocr && pip install pytesseract")
-            elif os.path.exists('/usr/bin/brew'):  # macOS with Homebrew
-                installation_instructions.append("brew install tesseract && pip install pytesseract")
-            else:
+        import ocr_manager
+        return ocr_manager.check_ocr_engines()
+    except ImportError:
+        # Fall back to manual checking
+        available_engines = []
+        missing_engines = []
+        installation_instructions = []
+        
+        # Check PaddleOCR
+        paddle_spec = importlib.util.find_spec('paddleocr')
+        if paddle_spec:
+            available_engines.append("PaddleOCR")
+        else:
+            missing_engines.append("PaddleOCR")
+            installation_instructions.append("pip install paddlepaddle paddleocr")
+        
+        # Check EasyOCR
+        easy_spec = importlib.util.find_spec('easyocr')
+        if easy_spec:
+            available_engines.append("EasyOCR")
+        else:
+            missing_engines.append("EasyOCR")
+            installation_instructions.append("pip install easyocr")
+        
+        # Check Tesseract
+        try:
+            import pytesseract
+            pytesseract.get_tesseract_version()
+            available_engines.append("Tesseract")
+        except:
+            missing_engines.append("Tesseract")
+            if os.name == 'nt':  # Windows
                 installation_instructions.append(
-                    "Install tesseract-ocr using your package manager and then: pip install pytesseract"
+                    "1. Download Tesseract installer from https://github.com/UB-Mannheim/tesseract/wiki\n"
+                    "2. Install and add to PATH\n"
+                    "3. pip install pytesseract"
                 )
-    
-    return available_engines, missing_engines, installation_instructions
+            elif os.name == 'posix':  # Linux/macOS
+                if os.path.exists('/usr/bin/apt'):  # Debian/Ubuntu
+                    installation_instructions.append("sudo apt-get install tesseract-ocr && pip install pytesseract")
+                elif os.path.exists('/usr/bin/brew'):  # macOS with Homebrew
+                    installation_instructions.append("brew install tesseract && pip install pytesseract")
+                else:
+                    installation_instructions.append(
+                        "Install tesseract-ocr using your package manager and then: pip install pytesseract"
+                    )
+        
+        return available_engines, missing_engines, installation_instructions
 
 # Now import our modules
 try:
     # Try loading from ocr_manager first (new implementation)
     try:
         import ocr_manager
-        from ocr_manager import check_ocr_engines, perform_ocr, detect_tables
+        from ocr_manager import perform_ocr, detect_tables
         st.session_state['ocr_module'] = 'ocr_manager'
         st.session_state['modules_loaded'] = True
-        logger = logging.getLogger(__name__)
         logger.info("Using ocr_manager module")
     except ImportError:
         # Fall back to original modules
         import model_manager
         from model_manager import initialize_models, get_ocr_config, update_ocr_config
-        from ocr_module import perform_ocr, detect_tables, detect_image_quality
+        from ocr_module import perform_ocr, detect_tables
         st.session_state['ocr_module'] = 'ocr_module'
         st.session_state['modules_loaded'] = True
-        logger = logging.getLogger(__name__)
         logger.warning("Using original ocr_module (ocr_manager not found)")
     
     try:
@@ -159,7 +166,7 @@ def load_css():
     try:
         with open(css_file, encoding='utf-8') as f:
             st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
-    except UnicodeDecodeError:
+    except Exception as e:
         # Provide basic fallback CSS if there's an encoding issue
         fallback_css = """
         .formatted-text {
@@ -187,13 +194,14 @@ def load_css():
         }
         """
         st.markdown(f'<style>{fallback_css}</style>', unsafe_allow_html=True)
+        logger.warning(f"Error loading CSS: {str(e)}")
 
 def load_js():
     js_file = os.path.join(os.path.dirname(__file__), 'static', 'script.js')
     try:
         with open(js_file, encoding='utf-8') as f:
             js_content = f.read()
-    except UnicodeDecodeError:
+    except Exception as e:
         # Fallback to another encoding or use a hardcoded version of the script
         js_content = """
         // Fallback script
@@ -239,6 +247,7 @@ def load_js():
             }
         }
         """
+        logger.warning(f"Error loading JS: {str(e)}")
     
     # Inject the JavaScript using components.html
     js_code = f"""
@@ -288,11 +297,14 @@ def main():
 
     if 'extracted_text' not in st.session_state:
         st.session_state['extracted_text'] = ''
-          # Initialize models with progress indicator
+    
+    # Initialize models with progress indicator
     if 'models_initialized' not in st.session_state:
         with st.spinner('Initializing OCR models...'):
             try:
-                initialize_models()
+                if st.session_state.get('ocr_module') == 'ocr_module':
+                    # Only initialize if using the old module
+                    initialize_models()
                 st.session_state['models_initialized'] = True
             except Exception as e:
                 st.error(f"Error initializing models: {str(e)}")
@@ -361,9 +373,14 @@ def main():
                     image = Image.open(uploaded_file)
                     st.image(image, caption="Uploaded Image", use_column_width=True)
                     
-                    # Check if image contains tables                    has_tables = detect_tables(image)
-                    if has_tables:
-                        st.info("📊 Table structures detected in the image. Layout preservation is recommended.")
+                    # Check if image contains tables
+                    try:
+                        has_tables = detect_tables(image)
+                        if has_tables:
+                            st.info("📊 Table structures detected in the image. Layout preservation is recommended.")
+                    except Exception as e:
+                        logger.error(f"Error detecting tables: {e}")
+                        pass  # Continue even if table detection fails
                     
                     with st.spinner('🔍 Performing OCR...'):
                         try:
@@ -374,88 +391,99 @@ def main():
                             )
                             
                             # Check if the OCR returned an error message
-                            if extracted_text.startswith("Error:"):
+                            if isinstance(extracted_text, str) and extracted_text.startswith("Error:"):
                                 st.error(extracted_text)
                                 st.info("Trying fallback OCR methods...")
                                 
                                 # Try different engines as fallback
-                                available_engines = []
-                                if model_manager.OPTIONAL_MODULES.get('paddleocr_available', False):
-                                    available_engines.append("paddle")
-                                if model_manager.OPTIONAL_MODULES.get('easyocr_available', False):
-                                    available_engines.append("easy")
+                                available_engines = st.session_state['available_ocr_engines']
+                                
+                                # Map UI names to engine parameter values
+                                engine_map = {
+                                    "PaddleOCR": "paddle",
+                                    "EasyOCR": "easy",
+                                    "Tesseract": "tesseract"
+                                }
                                 
                                 # Try each available engine
-                                for fallback_engine in available_engines:
-                                    if fallback_engine != st.session_state['ocr_engine']:
-                                        with st.spinner(f'Trying {fallback_engine} OCR engine...'):
+                                for engine_name in available_engines:
+                                    fallback_engine = engine_map.get(engine_name)
+                                    if fallback_engine and fallback_engine != st.session_state['ocr_engine']:
+                                        with st.spinner(f'Trying {engine_name} OCR engine...'):
                                             fallback_text = perform_ocr(
                                                 image,
                                                 engine=fallback_engine,
                                                 preserve_layout=st.session_state['preserve_layout']
                                             )
-                                            if not fallback_text.startswith("Error:"):
+                                            if not (isinstance(fallback_text, str) and fallback_text.startswith("Error:")):
                                                 extracted_text = fallback_text
-                                                st.success(f"Successfully extracted text using {fallback_engine} engine")
+                                                st.success(f"Successfully extracted text using {engine_name} engine")
                                                 break
-                                
-                                # If all engines failed, try pytesseract as a last resort
-                                if extracted_text.startswith("Error:"):
-                                    try:
-                                        import pytesseract
-                                        with st.spinner('Trying Tesseract OCR as last resort...'):
-                                            if isinstance(image, Image.Image):
-                                                tesseract_text = pytesseract.image_to_string(image)
-                                                if tesseract_text.strip():
-                                                    extracted_text = tesseract_text
-                                                    st.success("Successfully extracted text using Tesseract OCR")
-                                    except Exception as te:
-                                        pass
-                            
                         except Exception as e:
                             st.error(f"OCR processing error: {str(e)}")
                             extracted_text = f"Error during OCR processing: {str(e)}"
+                        
+                        st.session_state['extracted_text'] = extracted_text
+                            
                 elif uploaded_file.type == 'application/pdf':
                     with st.spinner('🔍 Performing OCR on PDF...'):
-                        pdf_data = uploaded_file.read()
-                        doc = fitz.open(stream=pdf_data, filetype="pdf")
-                        extracted_text = ""
-                        total_pages = len(doc)
-                        
-                        # Add a progress bar for PDF processing
-                        progress_bar = st.progress(0)
-                          for i, page in enumerate(doc):
-                            pix = page.get_pixmap()
-                            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                            try:
-                                page_text = perform_ocr(
-                                    img, 
-                                    engine=st.session_state['ocr_engine'],
-                                    preserve_layout=st.session_state['preserve_layout']
-                                )
-                                
-                                # Check if OCR failed and try fallback
-                                if page_text.startswith("Error:"):
-                                    st.warning(f"OCR failed on page {i+1}: {page_text}")
-                                    st.info(f"Trying fallback OCR for page {i+1}...")
+                        try:
+                            pdf_data = uploaded_file.read()
+                            doc = fitz.open(stream=pdf_data, filetype="pdf")
+                            extracted_text = ""
+                            total_pages = len(doc)
+                            
+                            # Add a progress bar for PDF processing
+                            progress_bar = st.progress(0)
+                            
+                            for i, page in enumerate(doc):
+                                pix = page.get_pixmap()
+                                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                                try:
+                                    page_text = perform_ocr(
+                                        img, 
+                                        engine=st.session_state['ocr_engine'],
+                                        preserve_layout=st.session_state['preserve_layout']
+                                    )
                                     
-                                    # Try alternative engine
-                                    alt_engine = "easy" if st.session_state['ocr_engine'] == "paddle" else "paddle"
-                                    if model_manager.OPTIONAL_MODULES.get(f'{alt_engine}ocr_available', False):
-                                        page_text = perform_ocr(
-                                            img,
-                                            engine=alt_engine,
-                                            preserve_layout=st.session_state['preserve_layout']
-                                        )
-                            except Exception as e:
-                                st.error(f"Error processing page {i+1}: {str(e)}")
-                                page_text = f"[Error on page {i+1}: {str(e)}]"
-                            extracted_text += f"--- PAGE {i+1} ---\n{page_text}\n\n"
-                            progress_bar.progress((i + 1) / total_pages)
+                                    # Check if OCR failed and try fallback
+                                    if isinstance(page_text, str) and page_text.startswith("Error:"):
+                                        st.warning(f"OCR failed on page {i+1}: {page_text}")
+                                        st.info(f"Trying fallback OCR for page {i+1}...")
+                                        
+                                        # Try alternative engine
+                                        available_engines = st.session_state['available_ocr_engines']
+                                        engine_map = {
+                                            "PaddleOCR": "paddle",
+                                            "EasyOCR": "easy",
+                                            "Tesseract": "tesseract"
+                                        }
+                                        
+                                        for engine_name in available_engines:
+                                            alt_engine = engine_map.get(engine_name)
+                                            if alt_engine and alt_engine != st.session_state['ocr_engine']:
+                                                page_text = perform_ocr(
+                                                    img,
+                                                    engine=alt_engine,
+                                                    preserve_layout=st.session_state['preserve_layout']
+                                                )
+                                                if not (isinstance(page_text, str) and page_text.startswith("Error:")):
+                                                    st.success(f"Used {engine_name} as fallback for page {i+1}")
+                                                    break
+                                except Exception as e:
+                                    st.error(f"Error processing page {i+1}: {str(e)}")
+                                    page_text = f"[Error on page {i+1}: {str(e)}]"
+                                
+                                extracted_text += f"--- PAGE {i+1} ---\n{page_text}\n\n"
+                                progress_bar.progress((i + 1) / total_pages)
+                            
+                            st.session_state['extracted_text'] = extracted_text
+                        except Exception as e:
+                            st.error(f"Error processing PDF: {str(e)}")
+                            st.session_state['extracted_text'] = f"Error processing PDF: {str(e)}"
                 else:
                     st.error("Unsupported file type!")
                     return
-                st.session_state['extracted_text'] = extracted_text
 
         with col2:
             if st.session_state['extracted_text']:
@@ -467,7 +495,8 @@ def main():
                     options=["Formatted", "Plain text"],
                     horizontal=True
                 )
-                  # Display the text based on the selected format
+                
+                # Display the text based on the selected format
                 if view_format == "Formatted":
                     # Generate a unique ID for this text block
                     text_id = f"output-text-{hash(st.session_state['extracted_text'])}"
@@ -517,11 +546,29 @@ def main():
     with tabs[1]:  # OCR Settings Tab
         st.markdown("### OCR Engine Settings")
         
-        # OCR engine selection
+        # OCR engine selection based on available engines
+        available_engines = st.session_state.get('available_ocr_engines', [])
+        engine_options = []
+        
+        if "PaddleOCR" in available_engines:
+            engine_options.append("PaddleOCR (Recommended)")
+        if "EasyOCR" in available_engines:
+            engine_options.append("EasyOCR")
+        if "Tesseract" in available_engines:
+            engine_options.append("Tesseract")
+            
+        # Always include Combined option if at least one engine is available
+        if engine_options:
+            engine_options.append("Combined (Best results)")
+        
+        if not engine_options:
+            st.error("No OCR engines are available. Please install at least one OCR engine.")
+            engine_options = ["No engines available"]
+        
         engine = st.radio(
             "Select OCR Engine",
-            options=["PaddleOCR (Recommended)", "EasyOCR", "Combined (Best results)"],
-            index=2,
+            options=engine_options,
+            index=len(engine_options) - 1 if engine_options else 0,
             horizontal=True
         )
         
@@ -529,7 +576,9 @@ def main():
         engine_map = {
             "PaddleOCR (Recommended)": "paddle",
             "EasyOCR": "easy",
-            "Combined (Best results)": "combined"
+            "Tesseract": "tesseract",
+            "Combined (Best results)": "combined",
+            "No engines available": "auto"
         }
         
         st.session_state['ocr_engine'] = engine_map[engine]
@@ -567,22 +616,29 @@ def main():
         ### OCR Engine Comparison
         - **PaddleOCR**: Fast and accurate, optimized for Asian languages but works well for English.
         - **EasyOCR**: Good general-purpose OCR with support for 80+ languages.
-        - **Combined**: Uses both engines and selects the best result (recommended but slower).
+        - **Tesseract**: Widely used open-source OCR engine, good for clean documents.
+        - **Combined**: Uses multiple engines and selects the best result (recommended but slower).
         """)
 
     with tabs[2]:  # Q&A Interface Tab
-        if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
+        if 'extracted_text' in st.session_state and st.session_state['extracted_text'] and st.session_state.get('rag_available', False):
             st.markdown("### Ask Questions")
             query = st.text_input("Enter your question about the document")
             if query:
                 with st.spinner('🤔 Finding answer...'):
-                    result = process_query(st.session_state['extracted_text'], query)
-                st.markdown(f"**Answer:** {result['answer']}")
-                
-                # Show confidence score
-                confidence = result.get('confidence', 0) * 100
-                st.progress(min(confidence / 100, 1.0))
-                st.caption(f"Confidence: {confidence:.1f}%")
+                    try:
+                        result = process_query(st.session_state['extracted_text'], query)
+                        st.markdown(f"**Answer:** {result['answer']}")
+                        
+                        # Show confidence score
+                        confidence = result.get('confidence', 0) * 100
+                        st.progress(min(confidence / 100, 1.0))
+                        st.caption(f"Confidence: {confidence:.1f}%")
+                    except Exception as e:
+                        st.error(f"Error processing query: {str(e)}")
+                        st.info("The Q&A functionality may be limited due to missing dependencies.")
+        elif not st.session_state.get('rag_available', False):
+            st.info("Q&A functionality is not available. The RAG module could not be loaded.")
         else:
             st.info("Please upload and process a document first.")
 

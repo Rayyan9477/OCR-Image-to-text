@@ -1,0 +1,19 @@
+{
+  "preprocessing": {
+    "default_contrast": 1.5,
+    "denoise": true,
+    "adaptive_threshold": true
+  },
+  "engines": {
+    "paddle": {
+      "use_angle_cls": true,
+      "lang": "en"
+    },
+    "easy": {
+      "langs": [
+        "en"
+      ],
+      "gpu": false
+    }
+  }
+}
