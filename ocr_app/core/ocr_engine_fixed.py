@@ -47,25 +47,10 @@ class OCREngine:
             "easyocr": False,
             "paddleocr": False
         }
-          # Check tesseract
+        
+        # Check tesseract
         try:
             import pytesseract
-            import os
-            import platform
-            
-            # Try to auto-detect Tesseract installation on Windows
-            if platform.system() == "Windows":
-                common_paths = [
-                    "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
-                    "C:\\Program Files (x86)\\Tesseract-OCR\\tesseract.exe",
-                    f"C:\\Users\\{os.getenv('USERNAME')}\\AppData\\Local\\Programs\\Tesseract-OCR\\tesseract.exe"
-                ]
-                for path in common_paths:
-                    if os.path.exists(path):
-                        pytesseract.pytesseract.tesseract_cmd = path
-                        logger.info(f"Found Tesseract at: {path}")
-                        break
-                        
             try:
                 pytesseract.get_tesseract_version()
                 engines["tesseract"] = True
@@ -478,27 +463,12 @@ class TesseractEngine(BaseOCREngine):
         """Initialize Tesseract engine"""
         super().__init__(settings)
         import pytesseract
-        import os
-        import platform
         self.pytesseract = pytesseract
         
         # Set custom path from settings if provided
         custom_path = self.settings.get("ocr.engines.tesseract.cmd_path")
         if custom_path:
             self.pytesseract.pytesseract.tesseract_cmd = custom_path
-        else:
-            # Try to auto-detect Tesseract installation on Windows
-            if platform.system() == "Windows":
-                common_paths = [
-                    "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
-                    "C:\\Program Files (x86)\\Tesseract-OCR\\tesseract.exe",
-                    f"C:\\Users\\{os.getenv('USERNAME')}\\AppData\\Local\\Programs\\Tesseract-OCR\\tesseract.exe"
-                ]
-                for path in common_paths:
-                    if os.path.exists(path):
-                        self.pytesseract.pytesseract.tesseract_cmd = path
-                        logger.info(f"Found Tesseract at: {path}")
-                        break
     
     def extract_text(self, image: Image.Image, preserve_layout: bool = True) -> str:
         """Extract text using Tesseract OCR"""

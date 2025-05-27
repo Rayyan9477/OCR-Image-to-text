@@ -27,7 +27,7 @@ if parent_dir not in sys.path:
 
 def main():
     """Run the Streamlit web application"""
-    from ocr_app.ui.web_app import StreamlitApp
+    from ui.web_app import StreamlitApp
     
     app = StreamlitApp()
     app.run()

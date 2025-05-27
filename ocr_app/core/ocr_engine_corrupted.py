@@ -7,12 +7,12 @@ This module provides the main OCR functionality with support for multiple OCR en
 import os
 import logging
 import importlib
-import time
-import io
 from typing import Dict, List, Tuple, Optional, Union, Any
 from pathlib import Path
 import numpy as np
 from PIL import Image
+import time
+import io
 
 from ..config.settings import Settings
 from .image_processor import ImageProcessor
@@ -47,25 +47,10 @@ class OCREngine:
             "easyocr": False,
             "paddleocr": False
         }
-          # Check tesseract
+        
+        # Check tesseract
         try:
             import pytesseract
-            import os
-            import platform
-            
-            # Try to auto-detect Tesseract installation on Windows
-            if platform.system() == "Windows":
-                common_paths = [
-                    "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
-                    "C:\\Program Files (x86)\\Tesseract-OCR\\tesseract.exe",
-                    f"C:\\Users\\{os.getenv('USERNAME')}\\AppData\\Local\\Programs\\Tesseract-OCR\\tesseract.exe"
-                ]
-                for path in common_paths:
-                    if os.path.exists(path):
-                        pytesseract.pytesseract.tesseract_cmd = path
-                        logger.info(f"Found Tesseract at: {path}")
-                        break
-                        
             try:
                 pytesseract.get_tesseract_version()
                 engines["tesseract"] = True
@@ -168,6 +153,224 @@ class OCREngine:
         
         # Try fallback engines if primary engine fails
         return self._fallback_ocr(image, preserve_layout, excluded_engine=engine)
+    
+    def _select_best_engine(self) -> str:
+        """Select the best available engine based on availability and settings"""
+        default_engine = self.settings.get("ocr.default_engine", "auto")
+        
+        # If default_engine is not "auto" and is available, use it
+        if default_engine != "auto" and default_engine in self.engines:
+            return default_engine
+        
+        # Otherwise, choose based on preference order: paddleocr > easyocr > tesseract
+        if "paddleocr" in self.engines:
+            return "paddleocr"
+        elif "easyocr" in self.engines:
+            return "easyocr"
+        elif "tesseract" in self.engines:
+            return "tesseract"
+        
+        # If no engines are available, log error and return tesseract as default
+        logger.error("No OCR engines available")
+        return "tesseract"  # This will likely fail but at least we tried
+    
+    def _combined_ocr(self, image: Image.Image, preserve_layout: bool) -> str:
+        """
+        Run OCR using multiple engines and combine results by selecting the best
+        
+        Args:
+            image: PIL Image to process
+            preserve_layout: Whether to preserve text layout
+            
+        Returns:
+            Best OCR result
+        """
+        results = {}
+        scores = {}
+        
+        # Run each available engine
+        for name, engine in self.engines.items():
+            try:
+                result = engine.extract_text(image, preserve_layout)
+                results[name] = result
+                scores[name] = self._score_result(result)
+            except Exception as e:
+                logger.error(f"Error with {name} OCR: {e}")
+        
+        if not results:
+            return "Error: No OCR engine produced results"
+        
+        # Return the result with the highest score
+        best_engine = max(scores, key=scores.get)
+        logger.info(f"Combined OCR selected {best_engine} result with score {scores[best_engine]}")
+        return results[best_engine]
+    
+    def _fallback_ocr(self, image: Image.Image, preserve_layout: bool, excluded_engine: str = None) -> str:
+        """
+        Try fallback OCR engines when the primary engine fails
+        
+        Args:
+            image: PIL Image to process
+            preserve_layout: Whether to preserve text layout
+            excluded_engine: Engine to exclude from fallbacks
+            
+        Returns:
+            OCR result from fallback engine, or error message
+        """
+        for name, engine in self.engines.items():
+            # Skip the excluded engine
+            if name == excluded_engine:
+                continue
+                
+            try:
+                result = engine.extract_text(image, preserve_layout)
+                if result:
+                    logger.info(f"Fallback to {name} OCR successful")
+                    return result
+            except Exception as e:
+                logger.error(f"Fallback {name} OCR failed: {e}")
+        
+        return "Error: All OCR engines failed"
+    
+    def _score_result(self, text: str) -> float:
+        """
+        Score OCR result quality based on heuristics
+        
+        Args:
+            text: OCR result text
+            
+        Returns:
+            Quality score (0-1)
+        """
+        if not text:
+            return 0.0
+            
+        # Simple scoring based on text length and character ratio
+        score = min(1.0, len(text) / 100)  # Basic length score
+        
+        # Penalize results with too many special characters
+        text_len = len(text)
+        if text_len > 0:
+            alpha_ratio = sum(c.isalnum() or c.isspace() for c in text) / text_len
+            score *= alpha_ratio
+            
+        return score
+    
+    @property
+    def enabled_engines(self) -> List[str]:
+        """Get list of enabled OCR engines"""
+        return list(self.engines.keys())
+
+
+class BaseOCREngine:
+    """Base class for OCR engines"""
+    
+    def __init__(self, settings: Settings):
+        """Initialize base OCR engine with settings"""
+        self.settings = settings
+    
+    def extract_text(self, image: Image.Image, preserve_layout: bool = True) -> str:
+        """
+        Extract text from image
+        
+        Args:
+            image: PIL Image to process
+            preserve_layout: Whether to preserve text layout
+            
+        Returns:
+            Extracted text
+        """
+        raise NotImplementedError("Subclasses must implement extract_text")
+
+
+class TesseractEngine(BaseOCREngine):
+    """Tesseract OCR engine implementation"""
+    
+    def __init__(self, settings: Settings):
+        """Initialize Tesseract engine"""
+        super().__init__(settings)
+        import pytesseract
+        self.pytesseract = pytesseract
+        
+        # Set custom path from settings if provided
+        custom_path = self.settings.get("ocr.engines.tesseract.cmd_path")
+        if custom_path:
+            self.pytesseract.pytesseract.tesseract_cmd = custom_path
+    
+    def extract_text(self, image: Image.Image, preserve_layout: bool = True) -> str:
+        """Extract text using Tesseract OCR"""
+        config = '--psm 1' if preserve_layout else '--psm 6'
+        try:
+            return self.pytesseract.image_to_string(image, config=config)
+        except Exception as e:
+            logger.error(f"Tesseract OCR error: {e}")
+            return ""
+
+
+class EasyOCREngine(BaseOCREngine):
+    """EasyOCR engine implementation"""
+    
+    def __init__(self, settings: Settings):
+        """Initialize EasyOCR engine"""
+        super().__init__(settings)
+        self.reader = None  # Lazy initialization to save memory
+    
+    def _get_reader(self):
+        """Lazy initialization of EasyOCR reader"""
+        if self.reader is None:
+            import easyocr
+            use_gpu = self.settings.get("ocr.engines.easyocr.gpu", False)
+            self.reader = easyocr.Reader(['en'], gpu=use_gpu)
+        return self.reader
+    
+    def extract_text(self, image: Image.Image, preserve_layout: bool = True) -> str:
+        """Extract text using EasyOCR"""
+        try:
+            reader = self._get_reader()
+            result = reader.readtext(np.array(image))
+            
+            if preserve_layout:
+                return self._format_with_layout(result)
+            else:
+                # Simple concatenation of detected text
+                return ' '.join([item[1] for item in result])
+        except Exception as e:
+            logger.error(f"EasyOCR error: {e}")
+            return ""
+    
+    def _format_with_layout(self, result) -> str:
+        """Format EasyOCR results preserving approximate layout"""
+        if not result:
+            return ""
+            
+        # Sort by vertical position (top to bottom)
+        result.sort(key=lambda x: x[0][0][1])  # Sort by y-coordinate of top-left point
+        
+        lines = []
+        current_line = []
+        last_y = -1
+        line_height_threshold = 20  # Adjust based on image resolution
+        
+        for box, text, _ in result:
+            top_y = min(p[1] for p in box)
+            
+            # Check if this is a new line
+            if last_y >= 0 and abs(top_y - last_y) > line_height_threshold:
+                # Sort words in current line by x-coordinate (left to right)
+                current_line.sort(key=lambda x: x[0])
+                lines.append(' '.join(word[1] for word in current_line))
+                current_line = []
+            
+            # Add word to current line
+            current_line.append(((box[0][0], top_y), text))
+            last_y = top_y
+        
+        # Add the last line if it exists
+        if current_line:
+            current_line.sort(key=lambda x: x[0])
+            lines.append(' '.join(word[1] for word in current_line))
+        
+        return '\n'.join(lines)
     
     def perform_batch_ocr(self, images: List[Image.Image], engine: str = "auto", 
                          preserve_layout: bool = True, preprocess: bool = False,
@@ -279,6 +482,14 @@ class OCREngine:
         
         return results
     
+    def get_performance_stats(self) -> Dict[str, Any]:
+        """Get current performance statistics"""
+        return self.performance_optimizer.get_system_stats()
+    
+    def clear_cache(self):
+        """Clear OCR result cache"""
+        self.cache_manager.clear_cache()
+    
     def process_pdf_optimized(self, pdf_path: str, engine: str = "auto",
                             preserve_layout: bool = True, preprocess: bool = False,
                             show_progress: bool = True) -> List[str]:
@@ -333,317 +544,3 @@ class OCREngine:
         except Exception as e:
             logger.error(f"Error processing PDF: {e}")
             return [f"Error: {str(e)}"]
-    
-    def _select_best_engine(self) -> str:
-        """Select the best available engine based on availability and settings"""
-        default_engine = self.settings.get("ocr.default_engine", "auto")
-        
-        # If default_engine is not "auto" and is available, use it
-        if default_engine != "auto" and default_engine in self.engines:
-            return default_engine
-        
-        # Otherwise, choose based on preference order: paddleocr > easyocr > tesseract
-        if "paddleocr" in self.engines:
-            return "paddleocr"
-        elif "easyocr" in self.engines:
-            return "easyocr"
-        elif "tesseract" in self.engines:
-            return "tesseract"
-        
-        # If no engines are available, log error and return tesseract as default
-        logger.error("No OCR engines available")
-        return "tesseract"  # This will likely fail but at least we tried
-    
-    def _combined_ocr(self, image: Image.Image, preserve_layout: bool) -> str:
-        """
-        Run OCR using multiple engines and combine results by selecting the best
-        
-        Args:
-            image: PIL Image to process
-            preserve_layout: Whether to preserve text layout
-            
-        Returns:
-            Best OCR result
-        """
-        results = {}
-        scores = {}
-        
-        # Run each available engine
-        for name, engine in self.engines.items():
-            try:
-                result = engine.extract_text(image, preserve_layout)
-                results[name] = result
-                scores[name] = self._score_result(result)
-            except Exception as e:
-                logger.error(f"Error with {name} OCR: {e}")
-        
-        if not results:
-            return "Error: No OCR engine produced results"
-        
-        # Return the result with the highest score
-        best_engine = max(scores, key=scores.get)
-        logger.info(f"Combined OCR selected {best_engine} result with score {scores[best_engine]}")
-        return results[best_engine]
-    
-    def _fallback_ocr(self, image: Image.Image, preserve_layout: bool, excluded_engine: str = None) -> str:
-        """
-        Try fallback OCR engines when the primary engine fails
-        
-        Args:
-            image: PIL Image to process
-            preserve_layout: Whether to preserve text layout
-            excluded_engine: Engine to exclude from fallbacks
-            
-        Returns:
-            OCR result from fallback engine, or error message
-        """
-        for name, engine in self.engines.items():
-            # Skip the excluded engine
-            if name == excluded_engine:
-                continue
-                
-            try:
-                result = engine.extract_text(image, preserve_layout)
-                if result:
-                    logger.info(f"Fallback to {name} OCR successful")
-                    return result
-            except Exception as e:
-                logger.error(f"Fallback {name} OCR failed: {e}")
-        
-        return "Error: All OCR engines failed"
-    
-    def _score_result(self, text: str) -> float:
-        """
-        Score OCR result quality based on heuristics
-        
-        Args:
-            text: OCR result text
-            
-        Returns:
-            Quality score (0-1)
-        """
-        if not text:
-            return 0.0
-            
-        # Simple scoring based on text length and character ratio
-        score = min(1.0, len(text) / 100)  # Basic length score
-        
-        # Penalize results with too many special characters
-        text_len = len(text)
-        if text_len > 0:
-            alpha_ratio = sum(c.isalnum() or c.isspace() for c in text) / text_len
-            score *= alpha_ratio
-            
-        return score
-    
-    def get_performance_stats(self) -> Dict[str, Any]:
-        """Get current performance statistics"""
-        return self.performance_optimizer.get_system_stats()
-    
-    def clear_cache(self):
-        """Clear OCR result cache"""
-        self.cache_manager.clear_cache()
-    
-    @property
-    def enabled_engines(self) -> List[str]:
-        """Get list of enabled OCR engines"""
-        return list(self.engines.keys())
-
-
-class BaseOCREngine:
-    """Base class for OCR engines"""
-    
-    def __init__(self, settings: Settings):
-        """Initialize base OCR engine with settings"""
-        self.settings = settings
-    
-    def extract_text(self, image: Image.Image, preserve_layout: bool = True) -> str:
-        """
-        Extract text from image
-        
-        Args:
-            image: PIL Image to process
-            preserve_layout: Whether to preserve text layout
-            
-        Returns:
-            Extracted text
-        """
-        raise NotImplementedError("Subclasses must implement extract_text")
-
-
-class TesseractEngine(BaseOCREngine):
-    """Tesseract OCR engine implementation"""
-    
-    def __init__(self, settings: Settings):
-        """Initialize Tesseract engine"""
-        super().__init__(settings)
-        import pytesseract
-        import os
-        import platform
-        self.pytesseract = pytesseract
-        
-        # Set custom path from settings if provided
-        custom_path = self.settings.get("ocr.engines.tesseract.cmd_path")
-        if custom_path:
-            self.pytesseract.pytesseract.tesseract_cmd = custom_path
-        else:
-            # Try to auto-detect Tesseract installation on Windows
-            if platform.system() == "Windows":
-                common_paths = [
-                    "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
-                    "C:\\Program Files (x86)\\Tesseract-OCR\\tesseract.exe",
-                    f"C:\\Users\\{os.getenv('USERNAME')}\\AppData\\Local\\Programs\\Tesseract-OCR\\tesseract.exe"
-                ]
-                for path in common_paths:
-                    if os.path.exists(path):
-                        self.pytesseract.pytesseract.tesseract_cmd = path
-                        logger.info(f"Found Tesseract at: {path}")
-                        break
-    
-    def extract_text(self, image: Image.Image, preserve_layout: bool = True) -> str:
-        """Extract text using Tesseract OCR"""
-        config = '--psm 1' if preserve_layout else '--psm 6'
-        try:
-            return self.pytesseract.image_to_string(image, config=config)
-        except Exception as e:
-            logger.error(f"Tesseract OCR error: {e}")
-            return ""
-
-
-class EasyOCREngine(BaseOCREngine):
-    """EasyOCR engine implementation"""
-    
-    def __init__(self, settings: Settings):
-        """Initialize EasyOCR engine"""
-        super().__init__(settings)
-        self.reader = None  # Lazy initialization to save memory
-    
-    def _get_reader(self):
-        """Lazy initialization of EasyOCR reader"""
-        if self.reader is None:
-            import easyocr
-            use_gpu = self.settings.get("ocr.engines.easyocr.gpu", False)
-            self.reader = easyocr.Reader(['en'], gpu=use_gpu)
-        return self.reader
-    
-    def extract_text(self, image: Image.Image, preserve_layout: bool = True) -> str:
-        """Extract text using EasyOCR"""
-        try:
-            reader = self._get_reader()
-            result = reader.readtext(np.array(image))
-            
-            if preserve_layout:
-                return self._format_with_layout(result)
-            else:
-                # Simple concatenation of detected text
-                return ' '.join([item[1] for item in result])
-        except Exception as e:
-            logger.error(f"EasyOCR error: {e}")
-            return ""
-    
-    def _format_with_layout(self, result) -> str:
-        """Format EasyOCR results preserving approximate layout"""
-        if not result:
-            return ""
-            
-        # Sort by vertical position (top to bottom)
-        result.sort(key=lambda x: x[0][0][1])  # Sort by y-coordinate of top-left point
-        
-        lines = []
-        current_line = []
-        last_y = -1
-        line_height_threshold = 20  # Adjust based on image resolution
-        
-        for box, text, _ in result:
-            top_y = min(p[1] for p in box)
-            
-            # Check if this is a new line
-            if last_y >= 0 and abs(top_y - last_y) > line_height_threshold:
-                # Sort words in current line by x-coordinate (left to right)
-                current_line.sort(key=lambda x: x[0])
-                lines.append(' '.join(word[1] for word in current_line))
-                current_line = []
-            
-            # Add word to current line
-            current_line.append(((box[0][0], top_y), text))
-            last_y = top_y
-        
-        # Add the last line if it exists
-        if current_line:
-            current_line.sort(key=lambda x: x[0])
-            lines.append(' '.join(word[1] for word in current_line))
-        
-        return '\n'.join(lines)
-
-
-class PaddleOCREngine(BaseOCREngine):
-    """PaddleOCR engine implementation"""
-    
-    def __init__(self, settings: Settings):
-        """Initialize PaddleOCR engine"""
-        super().__init__(settings)
-        self.ocr = None  # Lazy initialization to save memory
-    
-    def _get_ocr(self):
-        """Lazy initialization of PaddleOCR"""
-        if self.ocr is None:
-            try:
-                from paddleocr import PaddleOCR
-                use_gpu = self.settings.get("ocr.engines.paddleocr.gpu", False)
-                self.ocr = PaddleOCR(use_angle_cls=True, lang='en', use_gpu=use_gpu)
-            except ImportError:
-                logger.error("PaddleOCR not installed")
-                raise
-        return self.ocr
-    
-    def extract_text(self, image: Image.Image, preserve_layout: bool = True) -> str:
-        """Extract text using PaddleOCR"""
-        try:
-            ocr = self._get_ocr()
-            result = ocr.ocr(np.array(image), cls=True)
-            
-            if not result or not result[0]:
-                return ""
-                
-            if preserve_layout:
-                return self._format_with_layout(result[0])
-            else:
-                # Simple concatenation of detected text
-                return ' '.join([item[1][0] for item in result[0]])
-        except Exception as e:
-            logger.error(f"PaddleOCR error: {e}")
-            return ""
-    
-    def _format_with_layout(self, result) -> str:
-        """Format PaddleOCR results preserving approximate layout"""
-        if not result:
-            return ""
-            
-        # Sort by vertical position (top to bottom)
-        sorted_result = sorted(result, key=lambda x: min(p[1] for p in x[0]))
-        
-        lines = []
-        current_line = []
-        last_y = -1
-        line_height_threshold = 20  # Adjust based on image resolution
-        
-        for box, (text, _) in sorted_result:
-            top_y = min(p[1] for p in box)
-            
-            # Check if this is a new line
-            if last_y >= 0 and abs(top_y - last_y) > line_height_threshold:
-                # Sort words in current line by x-coordinate (left to right)
-                current_line.sort(key=lambda x: x[0])
-                lines.append(' '.join(word[1] for word in current_line))
-                current_line = []
-            
-            # Add word to current line
-            current_line.append(((box[0][0], top_y), text))
-            last_y = top_y
-        
-        # Add the last line if it exists
-        if current_line:
-            current_line.sort(key=lambda x: x[0])
-            lines.append(' '.join(word[1] for word in current_line))
-        
-        return '\n'.join(lines)

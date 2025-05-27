@@ -1,37 +1,82 @@
+#!/usr/bin/env python
 """
-Web UI module for the OCR application using Streamlit
+OCR Application Entry Point
+
+This script runs the OCR web interface using Streamlit.
 """
 
-import streamlit as st
-import streamlit.components.v1 as components
 import os
 import sys
-import io
 import logging
+
+# Add current directory to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+# Set environment variables for consistent behavior
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  # Suppress TensorFlow warnings
+os.environ["TF_USE_LEGACY_KERAS"] = "1"   # Use legacy Keras with TF
+os.environ["KERAS_BACKEND"] = "tensorflow"  # Ensure TF backend
+
+# Import Streamlit and other dependencies
+import streamlit as st
+import streamlit.components.v1 as components
+import io
 import time
 from PIL import Image
 import base64
 from typing import Optional, List, Dict, Any, Tuple, Union
 from pathlib import Path
 
-from ..core.ocr_engine import OCREngine
-from ..core.image_processor import ImageProcessor
-from ..models.model_manager import ModelManager
-from ..rag.rag_processor import RAGProcessor
-from ..config.settings import Settings
-from ..utils.text_utils import extract_entities, format_ocr_result
+# Import OCR components
+try:
+    from ocr_app.core.ocr_engine import OCREngine
+    from ocr_app.core.image_processor import ImageProcessor
+    from ocr_app.models.model_manager import ModelManager
+    from ocr_app.rag.rag_processor import RAGProcessor
+    from ocr_app.config.settings import Settings
+    from ocr_app.utils.text_utils import extract_entities, format_ocr_result
+except ImportError:
+    # Try relative imports
+    from core.ocr_engine import OCREngine
+    from core.image_processor import ImageProcessor
+    from models.model_manager import ModelManager
+    from rag.rag_processor import RAGProcessor
+    from config.settings import Settings
+    from utils.text_utils import extract_entities, format_ocr_result
+
+# Import our new multi-engine system
+try:
+    from multi_engine_ocr import get_multi_ocr, extract_text_multi_engine
+    from enhanced_image_processor import get_image_processor
+    MULTI_ENGINE_AVAILABLE = True
+except ImportError:
+    MULTI_ENGINE_AVAILABLE = False
+    logger.warning("Multi-engine OCR system not available")
 
 logger = logging.getLogger(__name__)
 
 class StreamlitApp:
     """
     Streamlit web interface for the OCR application
-    """
-    
-    def __init__(self):
+    """    def __init__(self):
         """Initialize the Streamlit app"""
-        self.settings = Settings()
         self.init_session_state()
+        
+        # Initialize components to None first
+        self.model_manager = None
+        self.ocr_engine = None
+        self.image_processor = None
+        self.rag_processor = None
+        self.multi_ocr = None
+        
         self.load_resources()
     
     def init_session_state(self):
@@ -50,56 +95,55 @@ class StreamlitApp:
             
         if 'models_initialized' not in st.session_state:
             st.session_state['models_initialized'] = False
-    
-    def load_resources(self):
+      def load_resources(self):
         """Load required resources and check dependencies"""
         try:
-            # Initialize components
-            with st.spinner('Initializing OCR system...'):
-                self.model_manager = ModelManager(self.settings)
-                self.ocr_engine = OCREngine(self.settings)
-                self.image_processor = ImageProcessor(self.settings)
-                self.rag_processor = RAGProcessor(self.model_manager, self.settings)
-                
-                # Store available OCR engines in session state
-                st.session_state['available_ocr_engines'] = self.ocr_engine.enabled_engines
-                
-                # Check for missing OCR engines
-                all_engines = ['tesseract', 'easyocr', 'paddleocr']
-                missing_engines = [engine for engine in all_engines if engine not in self.ocr_engine.enabled_engines]
-                st.session_state['missing_ocr_engines'] = missing_engines
-                
-                # Generate installation instructions for missing engines
-                if missing_engines:
-                    instructions = []
-                    if 'tesseract' in missing_engines:
-                        if sys.platform == 'win32':
-                            instructions.append("Download and install Tesseract: https://github.com/UB-Mannheim/tesseract/wiki")
-                        elif sys.platform == 'darwin':  # macOS
-                            instructions.append("brew install tesseract")
-                        else:  # Linux
-                            instructions.append("sudo apt-get install tesseract-ocr")
-                        instructions.append("pip install pytesseract")
+            # Initialize enhanced image processor
+            if MULTI_ENGINE_AVAILABLE:
+                with st.spinner('Initializing Multi-Engine OCR system...'):
+                    self.multi_ocr = get_multi_ocr()
+                    self.image_processor = get_image_processor()
+                    st.session_state['multi_engine_available'] = True
                     
-                    if 'easyocr' in missing_engines:
-                        instructions.append("pip install easyocr")
+                    # Get available engines from multi-OCR system
+                    available_engines = list(self.multi_ocr.engines.keys())
+                    st.session_state['available_ocr_engines'] = available_engines
+                    st.session_state['missing_ocr_engines'] = []
                     
-                    if 'paddleocr' in missing_engines:
-                        instructions.append("pip install paddlepaddle paddleocr")
-                    
-                    st.session_state['ocr_installation_instructions'] = instructions
-                else:
-                    st.session_state['ocr_installation_instructions'] = []
-                
-                # Check module status
-                module_status = self.model_manager.get_module_status()
-                if not module_status.get('transformers_available', False) or not module_status.get('sentence_transformers_available', False):
-                    st.session_state['rag_available'] = False
-                    st.session_state['dependency_errors'].append("Q&A functionality is limited - transformers or sentence_transformers modules not available")
-                else:
-                    st.session_state['rag_available'] = True
-                
-                st.session_state['models_initialized'] = True
+                    if available_engines:
+                        st.session_state['models_initialized'] = True
+                        logger.info(f"✅ Multi-Engine OCR initialized with: {available_engines}")
+                    else:
+                        st.session_state['dependency_errors'].append("No OCR engines available")
+            else:
+                # Fallback to original system
+                with st.spinner('Initializing standard OCR system...'):
+                    try:
+                        self.settings = Settings()
+                        self.model_manager = ModelManager(self.settings)
+                        self.ocr_engine = OCREngine(self.settings)
+                        self.image_processor = ImageProcessor(self.settings)
+                        self.rag_processor = RAGProcessor(self.model_manager, self.settings)
+                        
+                        st.session_state['available_ocr_engines'] = self.ocr_engine.enabled_engines if self.ocr_engine else []
+                        st.session_state['multi_engine_available'] = False
+                    except Exception as e:
+                        logger.error(f"Fallback OCR initialization failed: {e}")
+                        st.session_state['dependency_errors'].append(f"OCR initialization failed: {str(e)}")
+                        st.session_state['available_ocr_engines'] = []
+            
+            # Initialize RAG processor if possible
+            try:
+                if not hasattr(self, 'rag_processor') or self.rag_processor is None:
+                    if hasattr(self, 'model_manager') and self.model_manager:
+                        self.rag_processor = RAGProcessor(self.model_manager, self.settings)
+                        st.session_state['rag_available'] = True
+                    else:
+                        st.session_state['rag_available'] = False
+                        st.session_state['dependency_errors'].append("Q&A functionality not available")
+            except Exception as e:
+                logger.warning(f"RAG processor initialization failed: {e}")
+                st.session_state['rag_available'] = False
                 
         except Exception as e:
             logger.error(f"Error loading resources: {e}")
@@ -108,7 +152,7 @@ class StreamlitApp:
     
     def load_css(self):
         """Load custom CSS styles"""
-        css_file = os.path.join(os.path.dirname(__file__), '..', '..', 'static', 'styles.css')
+        css_file = os.path.join(os.path.dirname(__file__), 'static', 'styles.css')
         try:
             with open(css_file, encoding='utf-8') as f:
                 st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
@@ -151,19 +195,11 @@ class StreamlitApp:
                 text-align: center;
                 padding: 1rem;
                 margin-bottom: 2rem;
-            }
-            </style>
+            }            </style>
             """, unsafe_allow_html=True)
     
     def run(self):
         """Run the Streamlit application"""
-        st.set_page_config(
-            page_title="OCR Image-to-Text Tool",
-            page_icon="📄",
-            layout="wide",
-            initial_sidebar_state="expanded"
-        )
-        
         # Load CSS styles
         self.load_css()
         
@@ -240,47 +276,56 @@ class StreamlitApp:
             uploaded_file = st.file_uploader(
                 "Choose an image file",
                 type=["jpg", "jpeg", "png", "bmp", "tiff"],
-                help="Supported formats: JPG, PNG, BMP, TIFF"
-            )
-            
+                help="Supported formats: JPG, PNG, BMP, TIFF"            )
             if uploaded_file:
                 # Display uploaded image
                 image = Image.open(uploaded_file)
                 st.image(image, caption="Uploaded Image", use_column_width=True)
                 
-                # Image analysis
-                quality_info = self.image_processor.assess_image_quality(image)
-                has_tables = self.image_processor.detect_tables(image)
-                
-                st.markdown("### 📊 Image Analysis")
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    st.metric("Quality Score", f"{quality_info.get('quality_score', 0):.2f}")
-                with col_b:
-                    st.metric("Contains Tables", "Yes" if has_tables else "No")
-                
-                if has_tables:
-                    st.info("📊 Table structures detected. Layout preservation is recommended.")
+                # Image analysis (with error handling)
+                if self.image_processor:
+                    try:
+                        quality_info = self.image_processor.assess_image_quality(image)
+                        has_tables = self.image_processor.detect_tables(image)
+                        
+                        st.markdown("### 📊 Image Analysis")
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            st.metric("Quality Score", f"{quality_info.get('quality_score', 0):.2f}")
+                        with col_b:
+                            st.metric("Contains Tables", "Yes" if has_tables else "No")
+                            st.info("📊 Table structures detected. Layout preservation is recommended.")
+                    except Exception as e:
+                        st.warning(f"Image analysis failed: {str(e)}")
+                        quality_info = {'quality_score': 0}
+                        has_tables = False
+                else:
+                    st.warning("⚠️ Image processing not available. Please check system dependencies.")
+                    quality_info = {'quality_score': 0}
+                    has_tables = False
                 
                 # OCR Processing
                 if st.button("🔍 Extract Text", type="primary"):
-                    with st.spinner('Processing image...'):
-                        try:
-                            extracted_text = self.ocr_engine.perform_ocr(
-                                image,
-                                engine=st.session_state.get('ocr_engine', 'auto'),
-                                preserve_layout=st.session_state.get('preserve_layout', True),
-                                preprocess=True
-                            )
-                            
-                            if extracted_text:
-                                st.session_state['extracted_text'] = extracted_text
-                                st.success("✅ Text extracted successfully!")
-                            else:
-                                st.error("❌ No text could be extracted from the image.")
+                    if not self.ocr_engine:
+                        st.error("❌ OCR engine not available. Please check system dependencies.")
+                    else:
+                        with st.spinner('Processing image...'):
+                            try:
+                                extracted_text = self.ocr_engine.perform_ocr(
+                                    image,
+                                    engine=st.session_state.get('ocr_engine', 'auto'),
+                                    preserve_layout=st.session_state.get('preserve_layout', True),
+                                    preprocess=True
+                                )
                                 
-                        except Exception as e:
-                            st.error(f"❌ Error during OCR processing: {str(e)}")
+                                if extracted_text:
+                                    st.session_state['extracted_text'] = extracted_text
+                                    st.success("✅ Text extracted successfully!")
+                                else:
+                                    st.error("❌ No text could be extracted from the image.")
+                                    
+                            except Exception as e:
+                                st.error(f"❌ Error during OCR processing: {str(e)}")
         
         with col2:
             st.markdown("### 📄 Extracted Text")
@@ -492,6 +537,14 @@ class StreamlitApp:
 
 def main():
     """Main entry point for the Streamlit app"""
+    # Configure Streamlit page - MUST be first Streamlit command
+    st.set_page_config(
+        page_title="OCR Image-to-Text Tool",
+        page_icon="📄",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+    
     app = StreamlitApp()
     app.run()
 
