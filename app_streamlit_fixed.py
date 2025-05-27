@@ -7,18 +7,23 @@ This script runs the OCR web interface using Streamlit with improved error handl
 
 import os
 import sys
-import logging
 
 # Add current directory to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
+# Add ocr_app package to path for imports
+project_root = os.path.dirname(current_dir)
+sys.path.insert(0, os.path.join(project_root, 'ocr_app'))
+
 # Configure logging
+import logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+logger = logging.getLogger(__name__)
 
 # Set environment variables for consistent behavior
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  # Suppress TensorFlow warnings
@@ -43,22 +48,9 @@ try:
     from ocr_app.rag.rag_processor import RAGProcessor
     from ocr_app.config.settings import Settings
     from ocr_app.utils.text_utils import extract_entities, format_ocr_result
-except ImportError:
-    # Try relative imports
-    try:
-        from core.ocr_engine import OCREngine
-        from core.image_processor import ImageProcessor
-        from models.model_manager import ModelManager
-        from rag.rag_processor import RAGProcessor
-        from config.settings import Settings
-        from utils.text_utils import extract_entities, format_ocr_result
-    except ImportError:
-        # Fallback to simple imports
-        OCREngine = None
-        ImageProcessor = None
-        ModelManager = None
-        RAGProcessor = None
-        Settings = None
+except ImportError as e:
+    logger.error(f"OCR components import failed: {e}")
+    st.session_state.setdefault('dependency_errors', []).append("OCR components import failed")
 
 logger = logging.getLogger(__name__)
 

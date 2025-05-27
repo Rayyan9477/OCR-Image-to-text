@@ -103,7 +103,6 @@ def test_ocr():
             print("Failed to create test image. Exiting.")
             return
 
-    try:
     # First try the fixed OCR module
     print("Attempting to use fixed OCR module...")
     try:

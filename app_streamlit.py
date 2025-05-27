@@ -11,6 +11,8 @@ import logging
 
 # Add current directory to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+sys.path.insert(0, os.path.join(project_root, 'ocr_app'))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
@@ -19,6 +21,8 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 # Set environment variables for consistent behavior
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  # Suppress TensorFlow warnings
@@ -43,14 +47,12 @@ try:
     from ocr_app.rag.rag_processor import RAGProcessor
     from ocr_app.config.settings import Settings
     from ocr_app.utils.text_utils import extract_entities, format_ocr_result
-except ImportError:
-    # Try relative imports
-    from core.ocr_engine import OCREngine
-    from core.image_processor import ImageProcessor
-    from models.model_manager import ModelManager
-    from rag.rag_processor import RAGProcessor
-    from config.settings import Settings
-    from utils.text_utils import extract_entities, format_ocr_result
+except ImportError as e:
+    logger.error(f"OCR components import failed: {e}")
+    if 'dependency_errors' in st.session_state:
+        st.session_state['dependency_errors'].append("OCR components import failed")
+    else:
+        st.session_state['dependency_errors'] = ["OCR components import failed"]
 
 # Import our new multi-engine system
 try:
@@ -61,12 +63,11 @@ except ImportError:
     MULTI_ENGINE_AVAILABLE = False
     logger.warning("Multi-engine OCR system not available")
 
-logger = logging.getLogger(__name__)
-
 class StreamlitApp:
     """
     Streamlit web interface for the OCR application
-    """    def __init__(self):
+    """   
+    def __init__(self):
         """Initialize the Streamlit app"""
         self.init_session_state()
         
@@ -95,7 +96,7 @@ class StreamlitApp:
             
         if 'models_initialized' not in st.session_state:
             st.session_state['models_initialized'] = False
-      def load_resources(self):
+    def load_resources(self):
         """Load required resources and check dependencies"""
         try:
             # Initialize enhanced image processor

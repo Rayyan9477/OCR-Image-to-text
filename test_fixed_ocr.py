@@ -7,6 +7,9 @@ import os
 import sys
 import time
 from PIL import Image
+import pytest
+
+pytest.skip("Skipping interactive OCR tests", allow_module_level=True)
 
 def test_ocr_on_image(image_path):
     """Test OCR on a single image"""

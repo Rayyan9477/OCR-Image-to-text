@@ -29,6 +29,7 @@ class OCRResult:
     bbox: Optional[List] = None
     status: str = "success"
     error: Optional[str] = None
+    raw_results: Optional[List] = None  # Store raw results for layout analysis
 
 class EnhancedMultiEngineOCR:
     """Enhanced multi-engine OCR system with better fallbacks"""
@@ -130,7 +131,8 @@ class EnhancedMultiEngineOCR:
                 avg_confidence, 
                 "easyocr", 
                 time.time() - start_time,
-                status="success"
+                status="success",
+                raw_results=results  # Store raw results for layout analysis
             )
             
         except Exception as e:
@@ -168,7 +170,8 @@ class EnhancedMultiEngineOCR:
                 avg_confidence, 
                 "paddleocr", 
                 time.time() - start_time,
-                status="success"
+                status="success",
+                raw_results=results  # Store raw results for layout analysis
             )
             
         except Exception as e:
@@ -203,7 +206,8 @@ class EnhancedMultiEngineOCR:
                 avg_confidence, 
                 "tesseract", 
                 time.time() - start_time,
-                status="success"
+                status="success",
+                raw_results=data  # Store raw results for layout analysis
             )
             
         except Exception as e:

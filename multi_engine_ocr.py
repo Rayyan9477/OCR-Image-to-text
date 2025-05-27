@@ -14,6 +14,9 @@ from typing import List, Dict, Any, Optional, Tuple, Union
 import time
 import threading
 from dataclasses import dataclass
+from ocr_core.easyocr_reader import EasyOCRReader
+from ocr_core.paddle_reader import PaddleOCRReader
+from ocr_core.tesseract_reader import TesseractOCRReader
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
