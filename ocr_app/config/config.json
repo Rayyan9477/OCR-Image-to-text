@@ -1,0 +1,44 @@
+{
+  "ocr": {
+    "engines": {
+      "tesseract": {
+        "enabled": true,
+        "cmd_path": null
+      },
+      "easyocr": {
+        "enabled": true,
+        "gpu": false,
+        "languages": ["en"]
+      },
+      "paddleocr": {
+        "enabled": true,
+        "use_gpu": false,
+        "use_angle_cls": true,
+        "lang": "en"
+      }
+    },
+    "default_engine": "auto",
+    "preserve_layout": true,
+    "preprocessing": {
+      "enabled": true,
+      "enhance_contrast": true,
+      "remove_noise": true,
+      "correct_skew": true
+    }
+  },
+  "models": {
+    "download_path": "./models",
+    "cache_enabled": true,
+    "qa_model": "distilbert-base-cased-distilled-squad",
+    "sentence_transformer": "all-MiniLM-L6-v2"
+  },
+  "ui": {
+    "theme": "default",
+    "max_file_size": "200MB",
+    "supported_formats": ["jpg", "jpeg", "png", "pdf", "bmp", "tiff"]
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "ocr_app.log"
+  }
+}

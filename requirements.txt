@@ -1,21 +1,38 @@
-streamlit==1.31.0
-Pillow
-transformers
-torch
-python-dotenv
-pandas
-pytesseract
-sentence-transformers
-faiss-cpu
-PyPDF2
-pyperclip
-pymupdf
-numpy
-easyocr
-paddlepaddle
-paddleocr
-opencv-python
-scikit-image
-langdetect
-tf-keras
-tensorflow
+# Core dependencies
+streamlit>=1.31.0
+Pillow>=10.0.0
+numpy>=1.24.0
+opencv-python>=4.8.0
+scikit-image>=0.21.0
+
+# OCR engines
+pytesseract>=0.3.10
+easyocr>=1.7.0
+paddlepaddle>=2.5.0
+paddleocr>=2.7.0
+
+# Document processing
+pymupdf>=1.22.0
+PyPDF2>=3.0.0
+
+# Machine learning and NLP
+transformers>=4.36.0
+sentence-transformers>=2.2.2
+torch>=2.1.0
+tensorflow>=2.15.0
+tf-keras>=2.15.0
+langdetect>=1.0.9
+faiss-cpu>=1.7.0
+
+# Utilities
+python-dotenv>=1.0.0
+pandas>=2.0.0
+pyperclip>=1.8.2
+tqdm>=4.66.0
+pyyaml>=6.0.0
+requests>=2.31.0
+
+# For development
+pytest>=7.4.0
+black>=23.9.0
+isort>=5.12.0
