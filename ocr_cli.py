@@ -241,8 +241,8 @@ def main():
     parser = argparse.ArgumentParser(description='OCR System Command Line Interface')
     parser.add_argument('input_path', help='Path to input image or PDF file')
     parser.add_argument('--output', '-o', help='Path to output text file')
-    parser.add_argument('--engine', '-e', choices=['paddle', 'easy', 'combined'], 
-                        default='combined', help='OCR engine to use')
+    parser.add_argument('--engine', '-e', choices=['paddle', 'easy', 'combined', 'dolphin'], 
+                        default='combined', help='OCR engine to use (paddle, easy, combined, dolphin)')
     parser.add_argument('--no-layout', action='store_true', 
                         help='Disable layout preservation')
     parser.add_argument('--format', '-f', choices=['txt', 'json', 'md'], 

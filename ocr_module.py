@@ -10,6 +10,7 @@ from model_manager import get_paddle_ocr, get_easy_ocr, get_ocr_config
 import concurrent.futures
 from threading import Lock
 import time
+from dolphin_ocr import dolphin_ocr as dolphin_model_ocr
 
 warnings.filterwarnings('ignore')
 
@@ -255,6 +256,13 @@ def perform_ocr(image, engine="paddle", preserve_layout=True, enhance_image=True
                     print("PaddleOCR failed, falling back to pytesseract OCR...")
                     result = pytesseract_ocr(processed_image, preserve_layout)
             return result or "OCR processing failed - no text detected"
+        elif engine == "dolphin":
+            print("Performing OCR using Dolphin model...")
+            try:
+                result = dolphin_model_ocr(processed_image)
+                return result or "OCR processing failed - no text detected"
+            except Exception as e:
+                return f"Error in Dolphin OCR: {str(e)}"
         else:  # Combined approach with parallel processing
             result = combined_ocr(processed_image, preserve_layout)
             

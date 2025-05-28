@@ -20,7 +20,7 @@ An advanced application that performs Optical Character Recognition (OCR) on ima
 
 ## Features
 
-- **Multiple OCR Engines**: Choose between PaddleOCR, EasyOCR, Tesseract, or a combined approach for optimal results
+- **Multiple OCR Engines**: Choose between PaddleOCR, EasyOCR, Tesseract, Dolphin, or a combined approach for optimal results
 - **Layout Preservation**: Maintains the original document formatting, including line breaks and text positioning
 - **Image Preprocessing**: Automatically enhances images for better OCR accuracy
 - **Table Detection**: Identifies table structures in documents
@@ -179,6 +179,11 @@ For batch processing or integration with other tools:
    python run.py --cli --help
    ```
 
+6. **Run CLI with Dolphin model**
+   ```bash
+   python run_ocr.py --cli --engine dolphin --input path/to/image.jpg --output result.txt
+   ```
+
 ### Python API
 
 You can also use the components programmatically in your Python code:
@@ -276,7 +281,6 @@ Verify your OCR functionality and available engines:
 
 ```
 python run.py --check
-```
 ```
 
 ## OCR Engine Comparison

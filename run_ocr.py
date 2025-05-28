@@ -254,8 +254,8 @@ def main():
                         help='Path to input image or PDF file')
     cli_group.add_argument('--output', '-o', 
                         help='Path to output text file')
-    cli_group.add_argument('--engine', '-e', choices=['paddle', 'easy', 'combined'],
-                        help='OCR engine to use (paddle, easy, or combined)')
+    cli_group.add_argument('--engine', '-e', choices=['paddle', 'easy', 'combined', 'dolphin'], 
+                        help='OCR engine to use (paddle, easy, combined, dolphin)')
     cli_group.add_argument('--no-layout', action='store_true',
                         help='Disable layout preservation')
     cli_group.add_argument('--format', '-f', choices=['txt', 'json', 'md'],
