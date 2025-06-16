@@ -9,295 +9,174 @@ import time
 import sys
 import subprocess
 import logging
+import fitz
 
 # Add src directory to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+
+# Import UI components
+from src.ui.components import display_ocr_settings, display_extracted_text, display_qa_interface
+
+# Set page configuration - MUST be first Streamlit command
+st.set_page_config(
+    page_title="OCR Image to Text",
+    page_icon="📝",
+    layout="wide"
+)
 
 # Initialize session state for error tracking
 if 'dependency_errors' not in st.session_state:
     st.session_state['dependency_errors'] = []
 
-# Set environment variables to suppress TensorFlow warnings
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+# Set environment variables for TensorFlow/Keras compatibility
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow warnings
+os.environ['TF_USE_LEGACY_KERAS'] = '1'   # Use legacy Keras
+os.environ['KERAS_BACKEND'] = 'tensorflow'  # Set Keras backend to TensorFlow
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Disable GPU for compatibility
 
-# Set environment variables for TF-Keras compatibility
-os.environ['TF_USE_LEGACY_KERAS'] = '1'
-os.environ['KERAS_BACKEND'] = 'tensorflow'
-
-# Try to fix the Keras/TensorFlow compatibility issues
-try:
-    # Try importlib first to check availability without importing
-    tf_keras_spec = importlib.util.find_spec('tf_keras')
-    if tf_keras_spec:
-        # Only import if it's available
-        tf_keras = importlib.import_module('tf_keras')
-        st.info("Using tf-keras for compatibility")
-    else:
-        # Check if regular keras is available
-        keras_spec = importlib.util.find_spec('keras')
-        if keras_spec:
-            keras = importlib.import_module('keras')
-            keras_version = keras.__version__
-            if keras_version.startswith('3.'):
-                st.info("Using Keras 3 compatibility mode")
-                st.session_state['dependency_errors'].append(
-                    "Using Keras 3 compatibility mode. Some advanced features may be limited."
-                )
-        else:
-            # Try with tensorflow's built-in keras
-            tensorflow_spec = importlib.util.find_spec('tensorflow')
-            if tensorflow_spec:
-                tf = importlib.import_module('tensorflow')
-                if hasattr(tf, 'keras'):
-                    st.info("Using TensorFlow's built-in Keras")
-                else:
-                    st.session_state['dependency_errors'].append(
-                        "TensorFlow detected but Keras is not available. Some features may be limited."
-                    )
-except Exception as e:
-    st.session_state['dependency_errors'].append(f"Keras/TensorFlow note: {str(e)}")
-    pass
-
-# Check OCR engines availability
-def check_ocr_engines():
-    """Check which OCR engines are available and provide installation instructions if needed"""
-    available_engines = []
-    missing_engines = []
-    installation_instructions = []
-    
-    # Check PaddleOCR
-    paddle_spec = importlib.util.find_spec('paddleocr')
-    if paddle_spec:
-        available_engines.append("PaddleOCR")
-    else:
-        missing_engines.append("PaddleOCR")
-        installation_instructions.append("pip install paddlepaddle paddleocr")
-    
-    # Check EasyOCR
-    easy_spec = importlib.util.find_spec('easyocr')
-    if easy_spec:
-        available_engines.append("EasyOCR")
-    else:
-        missing_engines.append("EasyOCR")
-        installation_instructions.append("pip install easyocr")
-    
-    # Check Tesseract
-    try:
-        import pytesseract
-        pytesseract.get_tesseract_version()
-        available_engines.append("Tesseract")
-    except:
-        missing_engines.append("Tesseract")
-        if os.name == 'nt':  # Windows
-            installation_instructions.append(
-                "1. Download Tesseract installer from https://github.com/UB-Mannheim/tesseract/wiki\n"
-                "2. Install and add to PATH\n"
-                "3. pip install pytesseract"
-            )
-        elif os.name == 'posix':  # Linux/macOS
-            if os.path.exists('/usr/bin/apt'):  # Debian/Ubuntu
-                installation_instructions.append("sudo apt-get install tesseract-ocr && pip install pytesseract")
-            elif os.path.exists('/usr/bin/brew'):  # macOS with Homebrew
-                installation_instructions.append("brew install tesseract && pip install pytesseract")
-            else:
-                installation_instructions.append(
-                    "Install tesseract-ocr using your package manager and then: pip install pytesseract"
-                )
-    
-    return available_engines, missing_engines, installation_instructions
-
-# Now import our modules
-try:
-    # Try loading from ocr_manager first (new implementation)
-    try:
-        import ocr_manager
-        from ocr_manager import check_ocr_engines, perform_ocr, detect_tables
-        st.session_state['ocr_module'] = 'ocr_manager'
-        st.session_state['modules_loaded'] = True
-        logger = logging.getLogger(__name__)
-        logger.info("Using ocr_manager module")
-    except ImportError:
-        # Fall back to original modules
-        import model_manager
-        from model_manager import initialize_models, get_ocr_config, update_ocr_config
-        from ocr_module import perform_ocr, detect_tables, detect_image_quality
-        st.session_state['ocr_module'] = 'ocr_module'
-        st.session_state['modules_loaded'] = True
-        logger = logging.getLogger(__name__)
-        logger.warning("Using original ocr_module (ocr_manager not found)")
-    
-    try:
-        from rag_module import process_query
-        st.session_state['rag_available'] = True
-    except ImportError:
-        st.session_state['rag_available'] = False
-        st.session_state['dependency_errors'].append("RAG module not available - Q&A functionality will be limited")
-    
-    # Check OCR engines and store in session state
-    available_engines, missing_engines, installation_instructions = check_ocr_engines()
-    st.session_state['available_ocr_engines'] = available_engines
-    st.session_state['missing_ocr_engines'] = missing_engines
-    st.session_state['ocr_installation_instructions'] = installation_instructions
-    
-except Exception as e:
-    st.error(f"Error loading modules: {str(e)}")
-    st.session_state['modules_loaded'] = False
-    st.session_state['dependency_errors'].append(f"Module loading error: {str(e)}")
-    st.session_state['available_ocr_engines'] = []
-    st.session_state['missing_ocr_engines'] = ["PaddleOCR", "EasyOCR", "Tesseract"]
-    st.session_state['ocr_installation_instructions'] = ["pip install -r requirements.txt"]
-
-# Dynamic import for fitz (PyMuPDF)
-try:
-    fitz = importlib.import_module('fitz')  # PyMuPDF
-except ImportError:
-    st.error("PyMuPDF not installed. Install with 'pip install pymupdf'")
-    fitz = None
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def load_css():
-    css_file = os.path.join(os.path.dirname(__file__), 'static', 'styles.css')
-    try:
-        with open(css_file, encoding='utf-8') as f:
-            st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
-    except UnicodeDecodeError:
-        # Provide basic fallback CSS if there's an encoding issue
-        fallback_css = """
-        .formatted-text {
-            position: relative;
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
+    """Load custom CSS styles"""
+    st.markdown("""
+        <style>
+        .header {
+            text-align: center;
             padding: 1rem;
-            max-height: 500px;
-            overflow-y: auto;
-            font-family: monospace;
+            background-color: #f0f2f6;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .header h1 {
+            color: #1f77b4;
+            margin-bottom: 0.5rem;
+        }
+        .header p {
+            color: #666;
+            margin: 0.5rem 0;
+        }
+        .formatted-text {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            padding: 1rem;
             white-space: pre-wrap;
-            margin-bottom: 1rem;
+            font-family: monospace;
         }
-        
-        .copy-btn {
-            position: absolute;
-            top: 0.5rem;
-            right: 0.5rem;
-            background: rgba(0, 123, 255, 0.1);
-            border: none;
-            border-radius: 4px;
-            padding: 0.25rem 0.5rem;
-            cursor: pointer;
+        .stButton>button {
+            width: 100%;
+            margin-top: 1rem;
         }
-        """
-        st.markdown(f'<style>{fallback_css}</style>', unsafe_allow_html=True)
+        .stProgress>div>div>div {
+            background-color: #1f77b4;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
 def load_js():
-    js_file = os.path.join(os.path.dirname(__file__), 'static', 'script.js')
-    try:
-        with open(js_file, encoding='utf-8') as f:
-            js_content = f.read()
-    except UnicodeDecodeError:
-        # Fallback to another encoding or use a hardcoded version of the script
-        js_content = """
-        // Fallback script
+    """Load custom JavaScript functions"""
+    st.markdown("""
+        <script>
         function copyText(button) {
-            const textContainer = button.parentElement.querySelector('pre');
-            if (!textContainer) {
-                console.error('Text container not found');
-                button.innerHTML = '❌';
-                setTimeout(() => button.innerHTML = '📋', 2000);
-                return;
-            }
+            const textElement = button.parentElement.querySelector('pre');
+            const text = textElement.textContent;
             
-            const text = textContainer.innerText || textContainer.textContent;
-            
-            if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(text)
-                    .then(() => {
-                        button.innerHTML = '✓';
-                        setTimeout(() => button.innerHTML = '📋', 2000);
-                    })
-                    .catch(err => {
-                        console.error('Failed to copy:', err);
-                    });
-            } else {
-                const textArea = document.createElement('textarea');
-                textArea.value = text;
-                textArea.style.position = 'fixed';
-                textArea.style.opacity = '0';
-                document.body.appendChild(textArea);
-                
-                try {
-                    textArea.select();
-                    document.execCommand('copy');
-                    button.innerHTML = '✓';
-                    setTimeout(() => button.innerHTML = '📋', 2000);
-                } catch (err) {
-                    console.error('Fallback copy failed:', err);
-                    button.innerHTML = '❌';
-                    setTimeout(() => button.innerHTML = '📋', 2000);
-                } finally {
-                    document.body.removeChild(textArea);
-                }
-            }
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = button.textContent;
+                button.textContent = '✓';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 2000);
+            });
         }
-        """
-    
-    # Inject the JavaScript using components.html
-    js_code = f"""
-    <script>
-    {js_content}
-    
-    // Initialize at document load to ensure script is loaded properly
-    document.addEventListener('DOMContentLoaded', function() {{
-        // Attach click handlers to any copy buttons that exist
-        const copyButtons = document.querySelectorAll('.copy-btn');
-        copyButtons.forEach(btn => {{
-            btn.addEventListener('click', function() {{
-                copyText(this);
-            }});
-        }});
-    }});
-    
-    // Re-attach event listeners when Streamlit reruns
-    const observer = new MutationObserver(function(mutations) {{
-        const copyButtons = document.querySelectorAll('.copy-btn');
-        copyButtons.forEach(btn => {{
-            if (!btn.hasAttribute('data-listener')) {{
-                btn.setAttribute('data-listener', 'true');
-                btn.addEventListener('click', function() {{
-                    copyText(this);
-                }});
-            }}
-        }});
-    }});
-    
-    // Start observing the document with the configured parameters
-    observer.observe(document.body, {{ childList: true, subtree: true }});
-    </script>
-    """
-    st.components.v1.html(js_code, height=0)
+        </script>
+    """, unsafe_allow_html=True)
+
+def check_dependencies():
+    """Check and initialize required dependencies"""
+    try:
+        # Try to import TensorFlow first
+        import tensorflow as tf
+        tf.get_logger().setLevel('ERROR')  # Suppress TensorFlow logging
+        
+        # Initialize TensorFlow session
+        tf.compat.v1.disable_eager_execution()
+        
+        # Import OCR components
+        from src.core.ocr_engine import OCREngine
+        from src.core.model_manager import ModelManager
+        from src.ui.components import display_ocr_settings, display_extracted_text, display_qa_interface
+        
+        return True, None
+    except ImportError as e:
+        error_msg = f"Failed to import required modules: {str(e)}"
+        logger.error(error_msg)
+        return False, error_msg
+    except Exception as e:
+        error_msg = f"Error during initialization: {str(e)}"
+        logger.error(error_msg)
+        return False, error_msg
+
+def initialize_models():
+    """Initialize OCR models with proper error handling"""
+    try:
+        # Initialize OCR components
+        from src.core.ocr_engine import OCREngine
+        from src.core.model_manager import ModelManager
+        
+        # Create instances
+        model_manager = ModelManager()
+        ocr_engine = OCREngine()
+        
+        # Check if OCR engines are available
+        if ocr_engine.paddle_ocr is None and ocr_engine.easy_ocr is None:
+            st.error("No OCR engines could be initialized. Please check the installation of PaddleOCR and EasyOCR.")
+            return None, None
+        
+        # Store in session state
+        st.session_state['model_manager'] = model_manager
+        st.session_state['ocr_engine'] = ocr_engine
+        
+        return model_manager, ocr_engine
+    except Exception as e:
+        logger.error(f"Error initializing models: {str(e)}")
+        st.error(f"Error initializing models: {str(e)}")
+        return None, None
 
 def main():
-    try:
-        load_css()
-    except Exception as e:
-        st.warning(f"Could not load custom styles: {str(e)}. Using default styles.")
+    """Main application entry point"""
+    # Initialize variables
+    model_manager = None
+    ocr_engine = None
     
     try:
+        # Load custom CSS and JS
+        load_css()
         load_js()
     except Exception as e:
-        st.warning(f"Could not load JavaScript functions: {str(e)}. Some interactive features may be limited.")
+        st.warning(f"Could not load custom styles: {str(e)}. Using default styles.")
 
+    # Initialize session state
     if 'extracted_text' not in st.session_state:
         st.session_state['extracted_text'] = ''
-          # Initialize models with progress indicator
+    
+    # Initialize models with progress indicator
     if 'models_initialized' not in st.session_state:
-        with st.spinner('Initializing OCR models...'):
+        with st.spinner('Initializing OCR models... This may take a few minutes on first run.'):
             try:
-                initialize_models()
-                st.session_state['models_initialized'] = True
+                model_manager, ocr_engine = initialize_models()
+                if model_manager is not None and ocr_engine is not None:
+                    st.session_state['models_initialized'] = True
+                    st.success("OCR models initialized successfully!")
+                else:
+                    st.warning("Some components failed to initialize. The app will continue with limited functionality.")
             except Exception as e:
                 st.error(f"Error initializing models: {str(e)}")
                 st.info("The app will continue with limited functionality.")
 
+    # Display header
     st.markdown("""
         <div class="header">
             <h1>Intelligent OCR and Text Analysis Tool</h1>
@@ -309,282 +188,108 @@ def main():
             </p>
         </div>
     """, unsafe_allow_html=True)
-    
-    # Display OCR engine availability
-    if 'missing_ocr_engines' in st.session_state and st.session_state['missing_ocr_engines']:
-        with st.expander("⚠️ OCR Engine Availability Warning", expanded=True):
-            st.warning(
-                f"Some OCR engines are not available: {', '.join(st.session_state['missing_ocr_engines'])}. "
-                "This may limit OCR accuracy and functionality."
-            )
-            
-            st.markdown("### How to install missing OCR engines:")
-            
-            for instruction in st.session_state['ocr_installation_instructions']:
-                st.code(instruction)
-                
-            st.markdown("""
-                **Note:** After installing the required dependencies, please restart the application.
-                For full functionality, we recommend having at least one OCR engine installed.
-            """)
-    
-    # Display available OCR engines
-    if 'available_ocr_engines' in st.session_state and st.session_state['available_ocr_engines']:
-        st.success(f"Available OCR engines: {', '.join(st.session_state['available_ocr_engines'])}")
-    
-    # Display any dependency errors
-    if st.session_state['dependency_errors']:
-        with st.expander("Additional Dependency Notes", expanded=False):
-            for error in st.session_state['dependency_errors']:
-                st.info(error)
 
-    tabs = st.tabs(["📄 Document Processing", "⚙️ OCR Settings", "❓ Q&A Interface"])
-
-    # OCR settings in session state
-    if 'ocr_engine' not in st.session_state:
-        st.session_state['ocr_engine'] = 'combined'
-    if 'preserve_layout' not in st.session_state:
-        st.session_state['preserve_layout'] = True
-
-    with tabs[0]:  # Document Processing Tab
+    # Set up tabs
+    tabs = st.tabs(["OCR Processing", "Settings", "Q&A"])
+    
+    with tabs[0]:  # OCR Processing Tab
+        st.title("OCR Image to Text")
+        st.markdown("Upload an image or PDF to extract text using OCR")
+        
         col1, col2 = st.columns(2)
-
+        
         with col1:
-            st.markdown("### Upload Document")
             uploaded_file = st.file_uploader(
-                "Choose an image or PDF file",
-                type=["jpg", "jpeg", "png", "pdf"],
-                help="Supported formats: JPG, PNG, PDF"
+                "Choose a file",
+                type=['png', 'jpg', 'jpeg', 'pdf'],
+                help="Supported formats: PNG, JPG, JPEG, PDF"
             )
-            if uploaded_file:
-                if uploaded_file.type.startswith('image'):
+            
+            if uploaded_file is not None:
+                if uploaded_file.type.startswith('image/'):
                     image = Image.open(uploaded_file)
                     st.image(image, caption="Uploaded Image", use_column_width=True)
                     
-                    # Check if image contains tables                    has_tables = detect_tables(image)
-                    if has_tables:
-                        st.info("📊 Table structures detected in the image. Layout preservation is recommended.")
-                    
-                    with st.spinner('🔍 Performing OCR...'):
-                        try:
-                            extracted_text = perform_ocr(
-                                image, 
-                                engine=st.session_state['ocr_engine'], 
-                                preserve_layout=st.session_state['preserve_layout']
-                            )
-                            
-                            # Check if the OCR returned an error message
-                            if extracted_text.startswith("Error:"):
-                                st.error(extracted_text)
-                                st.info("Trying fallback OCR methods...")
-                                
-                                # Try different engines as fallback
-                                available_engines = []
-                                if model_manager.OPTIONAL_MODULES.get('paddleocr_available', False):
-                                    available_engines.append("paddle")
-                                if model_manager.OPTIONAL_MODULES.get('easyocr_available', False):
-                                    available_engines.append("easy")
-                                
-                                # Try each available engine
-                                for fallback_engine in available_engines:
-                                    if fallback_engine != st.session_state['ocr_engine']:
-                                        with st.spinner(f'Trying {fallback_engine} OCR engine...'):
-                                            fallback_text = perform_ocr(
-                                                image,
-                                                engine=fallback_engine,
-                                                preserve_layout=st.session_state['preserve_layout']
-                                            )
-                                            if not fallback_text.startswith("Error:"):
-                                                extracted_text = fallback_text
-                                                st.success(f"Successfully extracted text using {fallback_engine} engine")
-                                                break
-                                
-                                # If all engines failed, try pytesseract as a last resort
-                                if extracted_text.startswith("Error:"):
-                                    try:
-                                        import pytesseract
-                                        with st.spinner('Trying Tesseract OCR as last resort...'):
-                                            if isinstance(image, Image.Image):
-                                                tesseract_text = pytesseract.image_to_string(image)
-                                                if tesseract_text.strip():
-                                                    extracted_text = tesseract_text
-                                                    st.success("Successfully extracted text using Tesseract OCR")
-                                    except Exception as te:
-                                        pass
-                            
-                        except Exception as e:
-                            st.error(f"OCR processing error: {str(e)}")
-                            extracted_text = f"Error during OCR processing: {str(e)}"
-                elif uploaded_file.type == 'application/pdf':
-                    with st.spinner('🔍 Performing OCR on PDF...'):
-                        pdf_data = uploaded_file.read()
-                        doc = fitz.open(stream=pdf_data, filetype="pdf")
-                        extracted_text = ""
-                        total_pages = len(doc)
-                        
-                        # Add a progress bar for PDF processing
-                        progress_bar = st.progress(0)
-                          for i, page in enumerate(doc):
-                            pix = page.get_pixmap()
-                            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                    if st.button("Extract Text"):
+                        with st.spinner("Processing image..."):
                             try:
-                                page_text = perform_ocr(
-                                    img, 
-                                    engine=st.session_state['ocr_engine'],
-                                    preserve_layout=st.session_state['preserve_layout']
+                                # Use the OCR engine from session state
+                                ocr_engine = st.session_state.get('ocr_engine')
+                                if ocr_engine is None:
+                                    ocr_engine = OCREngine()
+                                    st.session_state['ocr_engine'] = ocr_engine
+                                
+                                # Get OCR settings
+                                settings = display_ocr_settings(st.session_state.get('model_manager'))
+                                
+                                # Process the image using perform_ocr
+                                extracted_text = ocr_engine.perform_ocr(
+                                    image,
+                                    engine=settings['engine'],
+                                    preserve_layout=settings['preserve_layout']
                                 )
                                 
-                                # Check if OCR failed and try fallback
-                                if page_text.startswith("Error:"):
-                                    st.warning(f"OCR failed on page {i+1}: {page_text}")
-                                    st.info(f"Trying fallback OCR for page {i+1}...")
-                                    
-                                    # Try alternative engine
-                                    alt_engine = "easy" if st.session_state['ocr_engine'] == "paddle" else "paddle"
-                                    if model_manager.OPTIONAL_MODULES.get(f'{alt_engine}ocr_available', False):
-                                        page_text = perform_ocr(
-                                            img,
-                                            engine=alt_engine,
-                                            preserve_layout=st.session_state['preserve_layout']
-                                        )
+                                # Store in session state
+                                st.session_state['extracted_text'] = extracted_text
+                                
+                                # Display results
+                                st.success("Text extracted successfully!")
+                                display_extracted_text(extracted_text)
+                                
                             except Exception as e:
-                                st.error(f"Error processing page {i+1}: {str(e)}")
-                                page_text = f"[Error on page {i+1}: {str(e)}]"
-                            extracted_text += f"--- PAGE {i+1} ---\n{page_text}\n\n"
-                            progress_bar.progress((i + 1) / total_pages)
-                else:
-                    st.error("Unsupported file type!")
-                    return
-                st.session_state['extracted_text'] = extracted_text
-
-        with col2:
-            if st.session_state['extracted_text']:
-                st.markdown("### Extracted Text")
-                
-                # Add options for displaying the text
-                view_format = st.radio(
-                    "View format", 
-                    options=["Formatted", "Plain text"],
-                    horizontal=True
-                )
-                  # Display the text based on the selected format
-                if view_format == "Formatted":
-                    # Generate a unique ID for this text block
-                    text_id = f"output-text-{hash(st.session_state['extracted_text'])}"
-                    
-                    st.markdown(f"""
-                        <div class="formatted-text">
-                            <pre id="{text_id}" style="white-space: pre-wrap;">{st.session_state['extracted_text']}</pre>
-                            <button class="copy-btn" onclick="copyText(this)" aria-label="Copy text">📋</button>
-                        </div>
-                        <script>
-                        // Ensure the button works immediately
-                        document.querySelectorAll('.copy-btn').forEach(function(btn) {{
-                            btn.addEventListener('click', function() {{
-                                copyText(this);
-                            }});
-                        }});
-                        </script>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.text_area("Plain text", st.session_state['extracted_text'], height=400)
-                
-                # Add file format options for download
-                file_format = st.selectbox(
-                    "Download format",
-                    options=["TXT", "JSON", "Markdown"],
-                    index=0
-                )
-                
-                if file_format == "TXT":
-                    download_data = st.session_state['extracted_text']
-                    file_name = "extracted_text.txt"
-                elif file_format == "JSON":
-                    import json
-                    download_data = json.dumps({"text": st.session_state['extracted_text']})
-                    file_name = "extracted_text.json"
-                else:  # Markdown
-                    download_data = f"# Extracted Text\n\n```\n{st.session_state['extracted_text']}\n```"
-                    file_name = "extracted_text.md"
-                
-                st.download_button(
-                    "💾 Download Text",
-                    download_data,
-                    file_name=file_name,
-                    help=f"Download the extracted text as a {file_format} file"
-                )
+                                st.error(f"Error processing image: {str(e)}")
+                                
+                elif uploaded_file.type == 'application/pdf':
+                    with st.spinner('🔍 Performing OCR on PDF...'):
+                        try:
+                            pdf_data = uploaded_file.read()
+                            doc = fitz.open(stream=pdf_data, filetype="pdf")
+                            extracted_text = ""
+                            total_pages = len(doc)
+                            
+                            # Add a progress bar for PDF processing
+                            progress_bar = st.progress(0)
+                            
+                            for i, page in enumerate(doc):
+                                pix = page.get_pixmap()
+                                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                                
+                                # Process each page
+                                page_text = ocr_engine.perform_ocr(
+                                    img,
+                                    engine=settings['engine'],
+                                    preserve_layout=settings['preserve_layout']
+                                )
+                                
+                                extracted_text += f"--- PAGE {i+1} ---\n{page_text}\n\n"
+                                
+                                # Update progress
+                                progress = (i + 1) / total_pages
+                                progress_bar.progress(progress)
+                            
+                            # Store in session state
+                            st.session_state['extracted_text'] = extracted_text
+                            
+                            # Display results
+                            st.success("PDF processing completed!")
+                            display_extracted_text(extracted_text)
+                            
+                        except Exception as e:
+                            st.error(f"Error processing PDF: {str(e)}")
     
-    with tabs[1]:  # OCR Settings Tab
-        st.markdown("### OCR Engine Settings")
-        
-        # OCR engine selection
-        engine = st.radio(
-            "Select OCR Engine",
-            options=["PaddleOCR (Recommended)", "EasyOCR", "Combined (Best results)"],
-            index=2,
-            horizontal=True
-        )
-        
-        # Map UI options to engine parameter values
-        engine_map = {
-            "PaddleOCR (Recommended)": "paddle",
-            "EasyOCR": "easy",
-            "Combined (Best results)": "combined"
-        }
-        
-        st.session_state['ocr_engine'] = engine_map[engine]
-        
-        # Layout preservation option
-        st.session_state['preserve_layout'] = st.checkbox(
-            "Preserve text layout and formatting",
-            value=True,
-            help="Maintains the original document's layout including line breaks and approximate text positioning"
-        )
-        
-        # Add more OCR settings
-        st.markdown("### Advanced Settings")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("#### Image Preprocessing")
-            apply_preprocessing = st.checkbox(
-                "Enable image preprocessing",
-                value=True,
-                help="Applies various image enhancement techniques before OCR"
-            )
-        
-        with col2:
-            st.markdown("#### Language Settings")
-            language = st.selectbox(
-                "Language",
-                options=["English", "Multi-language (Slower)"],
-                index=0,
-                help="Select the primary language of your document"
-            )
-            
-        st.markdown("---")
-        st.markdown("""
-        ### OCR Engine Comparison
-        - **PaddleOCR**: Fast and accurate, optimized for Asian languages but works well for English.
-        - **EasyOCR**: Good general-purpose OCR with support for 80+ languages.
-        - **Combined**: Uses both engines and selects the best result (recommended but slower).
-        """)
-
-    with tabs[2]:  # Q&A Interface Tab
-        if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
-            st.markdown("### Ask Questions")
-            query = st.text_input("Enter your question about the document")
-            if query:
-                with st.spinner('🤔 Finding answer...'):
-                    result = process_query(st.session_state['extracted_text'], query)
-                st.markdown(f"**Answer:** {result['answer']}")
-                
-                # Show confidence score
-                confidence = result.get('confidence', 0) * 100
-                st.progress(min(confidence / 100, 1.0))
-                st.caption(f"Confidence: {confidence:.1f}%")
+    with tabs[1]:  # Settings Tab
+        st.title("OCR Settings")
+        if model_manager is not None:
+            display_ocr_settings(model_manager)
+        else:
+            st.warning("OCR settings are not available. Please wait for initialization to complete.")
+    
+    with tabs[2]:  # Q&A Tab
+        st.title("Document Q&A")
+        if 'extracted_text' in st.session_state:
+            display_qa_interface(st.session_state['extracted_text'])
         else:
             st.info("Please upload and process a document first.")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
