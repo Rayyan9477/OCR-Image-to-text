@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCR Image to Text</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="header">
+            <h1>OCR Image to Text</h1>
+            <p>Extract text from images with high accuracy using advanced OCR technology</p>
+        </header>
+
+        <main class="main-content">
+            <div class="upload-section">
+                <div class="upload-container" id="dropZone">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <h3>Drag & Drop Images Here</h3>
+                    <p>or</p>
+                    <label for="fileInput" class="upload-button">Choose Files</label>
+                    <input type="file" id="fileInput" multiple accept="image/*" hidden>
+                    <p class="file-info">Supported formats: PNG, JPG, JPEG, GIF, BMP, TIFF</p>
+                    <p class="file-info">Max file size: 16MB</p>
+                </div>
+            </div>
+
+            <div class="settings-panel">
+                <h3>Processing Options</h3>
+                <div class="settings-grid">
+                    <label class="setting-item">
+                        <input type="checkbox" id="enhanceImage" checked>
+                        <span>Enhance Image</span>
+                    </label>
+                    <label class="setting-item">
+                        <input type="checkbox" id="denoiseImage" checked>
+                        <span>Remove Noise</span>
+                    </label>
+                    <label class="setting-item">
+                        <input type="checkbox" id="correctSkew" checked>
+                        <span>Correct Skew</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="results-section" id="resultsSection" style="display: none;">
+                <div class="results-header">
+                    <h3>Extracted Text</h3>
+                    <div class="results-actions">
+                        <button class="action-button" id="copyAllBtn">
+                            <i class="fas fa-copy"></i> Copy All
+                        </button>
+                        <button class="action-button" id="downloadBtn">
+                            <i class="fas fa-download"></i> Download
+                        </button>
+                    </div>
+                </div>
+                <div class="results-container" id="resultsContainer"></div>
+            </div>
+
+            <div class="progress-section" id="progressSection" style="display: none;">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <p class="progress-text" id="progressText">Processing...</p>
+            </div>
+
+            <div class="error-section" id="errorSection" style="display: none;">
+                <div class="error-message">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <p id="errorText"></p>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>Powered by Nanonets OCR</p>
+            <p>Rate limit: 200 requests per day, 50 per hour</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 

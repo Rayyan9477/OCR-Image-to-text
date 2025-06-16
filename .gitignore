@@ -30,3 +30,8 @@ __pycache__/
 *.swp
 .DS_Store
 Thumbs.db
+
+# ignore python cache files and folder
+*.pyc
+__pycache__/
+.pytest_cache/
